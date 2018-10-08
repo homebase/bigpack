@@ -14,8 +14,10 @@ Serve Millions Files from an Indexed Archive.
     *  for 1 billion items stored: ~4E-7 (odds of winning a 6/49 lottery)
     *  for 1 million items stored: ~4E-13 (odds of a meteor landing on your house)
 * Can store up to 256TB (1PB with 4-byte datafile alignment)
+* Shard limit: 1TB (4TB with 4-byte datafile alignment)
 * MIT licensed Open Source Project
-* Can use filesystem file or raw-partition as a data storage
+* Can use filesystem or raw-partition for data storage
+    * indexes are pretty small and should be kept in filesystem
 
 # Use Case:
 * Combine OpenStreetMap map-tiles in one(several) file, avoid filesystem overhead, serve them super fast
@@ -65,6 +67,9 @@ Serve Millions Files from an Indexed Archive.
  * merge two or several bigpacks
  * rebuild indexes
 
+## bigpack-sync $remote
+ * rsync changes + (optionally) reload remote web-service
+
 # BigPack Server
 
 ## "bigpack-server $dir" command (golang)
@@ -76,3 +81,18 @@ Serve Millions Files from an Indexed Archive.
 * Options:  
     * --port=port  - tcp port number - default 8080
     * --socket=filename   - unix socket name
+    
+    
+# Internals
+
+## Generated Files
+* BigPack.data  - File Contents
+* BigPack.index - Map Path/File Names to Content (text file, tab separated format)
+* BigPack.deleted - no-longer relevant filename to content mappings (same format as index)
+* BigPack.map - binary index. hash(filename) => datafile_offset mapping (sorted by hash)
+* BigPack.map2 - binary index of index - kept in memory for web-service.
+* BigPack.options - options in key=value format
+    sharding=on/off ; shards=## ;data-file-alignment=0,2,4,8,16 ; compression ....
+
+When sharding is enabled files located in BigPack directory + subdirectories. Names are "$Shard.*"
+Ex. BigPack/{5bit}/{3bit}_$data
