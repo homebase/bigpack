@@ -20,33 +20,50 @@ Serve Millions Files from an Indexed Archive.
 # Use Case:
 * Combine OpenStreetMap map-tiles in one(several) file, avoid filesystem overhead, serve them super fast
 * Export whole web site as static pages, serve it
+* Use a separate static pages server for your project, deploy/rollback your files in a second
+* backup storage system with deduplication - keep history
+* make cheap snapshots for your directories
 * use nginx as front-end http2 server (plus you can add your header/footer, whatever)
 
 # Cli Tools
 
 ## bigpack init
 * compress all files in directory/subdirectories
-* removes added files
+* removes added files (optionally)
 * build indexes
 
 ## bigpack add
 * adds new files to BigPack 
-* removes added files
+* removes added files (optionally)
 * ignores existing files
 * rebuild indexes
 
 ## bigpack update
 * adds new file contents to BigPack (old content kept intact)
-* removes added files
+* removes added files (optionally)
 * no-longer relevant filename to content mapping stored in BigPack.deleted file
 * rebuild indexes
 
+## bigpack list
+* list files in archive (latest revision, or all revisions)
+
 ## bigpack extract
-* Exract packed files
+* Extract packed files
+* Extract specific file, file+revision from archive
+
+## bigpack delete
+* Remove specific files from index
+* no-longer relevant filename to content mapping stored in BigPack.deleted file
+* rebuild indexes
 
 ## bigpack purge
 * removes unused file contents, clean up BigPack.deleted
 * rebuild indexes
+* optionally specify how many revisions you want to retain
+
+## bigpack merge
+ * merge two or several bigpacks
+ * rebuild indexes
 
 # BigPack Server
 
