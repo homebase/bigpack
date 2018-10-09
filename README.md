@@ -93,6 +93,8 @@ Serve Millions Files from an Indexed Archive.
 * BigPack.map2 - binary index of index - kept in memory for web-service.
 * BigPack.options - options in key=value format
     sharding=on/off ; shards=## ;data-file-alignment=0,2,4,8,16 ; compression ....
+* BigPack.ignore - list of ignored directories / files
 
-When sharding is enabled files located in BigPack directory + subdirectories. Names are "$Shard.*"
-Ex. BigPack/{5bit}/{3bit}_$data
+When sharding is enabled files located in BigPack directory + subdirectories.
+Names are "$Shard.*"
+Example. BigPack/{5bit} as hex/{3bit}_$data    -- 256 shards
