@@ -98,3 +98,22 @@ Serve Millions Files from an Indexed Archive.
 When sharding is enabled files located in BigPack directory + subdirectories.
 Names are "$Shard.*"
 Example. BigPack/{5bit} as hex/{3bit}_$data    -- 256 shards
+
+# Ideas / TODO:
+
+## Speed up first 16 lookup for binary search
+in-memory-only index of map2. index of index of index. 
+array[uint16 hash_prefix] => index of first-prefix-entry in map2 array.
+
+## Support for "etag" header
+* Keep content-hash in data file - serve it as ETAG !!
+* "304" non modified response
+
+## Support for "expires" header
+* configured in BigPack.options
+
+## In-Memory File Caching
+^^ IMO should be implemented as a standalone caching proxy
+* implement file-hash request watcher
+* build list of most requested files along with size in sectors
+* cache most used files using saved-disk-sector-reads as a measurment
