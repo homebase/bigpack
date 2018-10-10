@@ -85,7 +85,7 @@ Serve Millions Files from an Indexed Archive.
     
 # Internals
 
-## Generated Files
+## BigPack Files
 * BigPack.data  - File Contents
 * BigPack.index - Map Path/File Names to Content (text file, tab separated format)
 * BigPack.deleted - no-longer relevant filename to content mappings (same format as index)
