@@ -105,15 +105,15 @@ Example. BigPack/{5bit} as hex/{3bit}_$data    -- 256 shards
 in-memory-only index of map2. index of index of index. 
 array[uint16 hash_prefix] => index of first-prefix-entry in map2 array.
 
-## Keep content-hash in data file
-* serve it as ETAG !!
-* suport ETAG
+## Support for "etag" header
+* Keep content-hash in data file - serve it as ETAG !!
+* "304" non modified response
+
+## Support for "expires" header
+* configured in BigPack.options
 
 ## In-Memory File Caching
 ^^ IMO should be implemented as a standalone caching proxy
 * implement file-hash request watcher
 * build list of most requested files along with size in sectors
 * cache most used files using saved-disk-sector-reads as a measurment
-
-## Support for "expires" header
-* configured in BigPack.options
