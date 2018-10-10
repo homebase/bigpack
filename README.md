@@ -98,3 +98,8 @@ Serve Millions Files from an Indexed Archive.
 When sharding is enabled files located in BigPack directory + subdirectories.
 Names are "$Shard.*"
 Example. BigPack/{5bit} as hex/{3bit}_$data    -- 256 shards
+
+### Idea: Speed up first 16 lookup for binary search
+in-memory-only index of map2. index of index of index. 
+array[uint16 hash_prefix] => index of first-prefix-entry in map2 array.
+
