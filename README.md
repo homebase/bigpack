@@ -1,8 +1,7 @@
 # bigpack
 
-Blazing Fast Static Web Server + Tools. 
-Supports Compression, Deduplication, Petabyte Scale. 
-Serve Millions Files from an Indexed Archive.
+Blazing Fast Petabyte Scale Static Web Server + Tools. 
+Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 
 * Pack lots of files in directory/sub-directories into several files (data file + indexes)
 * Dedup Files
