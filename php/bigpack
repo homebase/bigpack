@@ -1,0 +1,5 @@
+#!/usr/bin/php
+<?php
+ini_set("memory_limit", -1);
+include __DIR__."/BigPack.php";
+hb\bigpack\Cli::_run($argv);
