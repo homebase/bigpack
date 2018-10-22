@@ -104,7 +104,7 @@ class Core {
         //    uint32 size, byte[10] data-hash, byte flags, byte[$len] data  // 15 byte prefix
         fseek($fh, $offset, SEEK_SET);
         $data = fread($fh, $READ_BUFFER);
-        $d = unpack("Lsize/A10dh/cflag", $data);
+        $d = unpack("Lsize/a10dh/cflag", $data); // A10 FAILS !!!  - bin2hex(unpack("A6aa", pack("A6", "aaaaa\t") )['aa'])
         // var_dump([$offset, $d]);
         if ($d['size'] <= $READ_BUFFER-$PREFIX_SIZE) { // prefix size
             $data = substr($data, $PREFIX_SIZE, $d['size']);
@@ -127,7 +127,7 @@ class Packer {
 
     static $WRITE_BUFFER_FILES   = 1000;        // NN files to keep in write buffer
     static $WRITE_BUFFER_SIZE    = 10 << 20;    // size in MB
-    static $no_gzip_default = "gz bz2 tgz xz jpg jpeg gif webp zip 7z rar";
+    static $no_gzip_default = "gz bz2 tgz xz jpg jpeg gif png webp zip 7z rar";
 
     // public
     var $opts = []; // options from BigPack.options and Cli
@@ -252,7 +252,7 @@ class Packer {
         $this->stat['file-size'] = 0;
         foreach ($scanner as [$file, $filename_hash]) {
             $data = file_get_contents($file);
-            $Core = Core::hash($data);
+            $data_hash = Core::hash($data);
             $flags = 0; // bit field
             $mode = fileperms($file) & 511;   // @todo check vs stat() - what is faster
             $file_mtime = filemtime($file);
@@ -284,7 +284,7 @@ class Packer {
         }
         $len = strlen($data);
         if ($len < 1024) {
-            @$this->stat['files-compression-skipped']++;
+            @$this->stat['files-compression-skippedrun']++;
             return [$data, $flags]; // no compression for small files
         }
         $compressed_data = gzdeflate($data);
@@ -316,7 +316,7 @@ class Packer {
             return 0;
         }
         // uint32 size, byte[10] data-hash, byte flags, byte[$len] data  // 15 byte prefix
-        $w_data = pack("LA10c", $len, $data_hash, $flags).$data;
+        $w_data = pack("La10c", $len, $data_hash, $flags).$data;
         $this->_write($file, $index, $w_data);
         $this->DATAHASH_OFFSET[$data_hash] = $offset;
         @$this->stat['files']++;
@@ -379,6 +379,27 @@ class Packer {
         $size  = 0;
     }
 
+    /**
+     * iterate over all files
+     * remove files already in archive, use FILEMTIME to compare
+     *
+     *  -v to see files being removed
+     */
+    function removeArchived() {
+        // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 7 => "DataOffset"]
+        foreach (Core::indexReader() as $d) {
+            $file = $d[0];
+            if (! file_exists($file))
+                continue;
+            $file_mtime = filemtime($file);
+            if ((int) $file_mtime === (int) $d[4]) {
+                @$this->opts['v']  && print("removing $file\n");
+                unlink($file);
+            } else {
+                fprintf(STDERR, "can't remove file %s. filemtime is different. expect %d got %d\n", $file, $d[4], $file_mtime);
+            }
+        }
+    }
 
 } // class Packer
 
@@ -391,13 +412,17 @@ class Extractor {
         $this->opts = $opts;
     }
 
-    function run() {
+    function extract() {
+        // processing CLI options
         if (@$this->opts['all'])
             return $this->extractAll();
+        if (@$this->opts['data-hash'])
+            return $this->extractHash($this->opts[2], $this->opts['data-hash']);  // extract filename --data-hash=....
         $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
         $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
         if (! $files)
             Util::error("no files to extract");
+        // ------------------------
         $fh2file = [];  // filehash => $filename
         $fh2d = []; // filehash => $index-line
         foreach ($files as $file)
@@ -421,6 +446,24 @@ class Extractor {
         }
     }
 
+    // extract specific version of specific file
+    // bigpack extract Filename --data-hash=....
+    function extractHash(string $file, string $data_hash_hex) {
+        if (! $file)
+            Util::error("specify filename");
+        $fh = Core::hash($file);
+        if (! $data_hash_hex)
+            Util::error("specify data-hash");
+        $dh   = hex2bin($data_hash_hex);
+        foreach (Core::indexReader() as $d) {
+            if ($d[1] === $fh && $d[2] === $dh) {
+                $this->_extract($d);
+                return;
+            }
+        }
+        Util::error("Error: Can't find filename - hash combination");
+    }
+
     // Extract specific file
     // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 7 => "DataOffset"]
     function _extract(array $d) {
@@ -430,8 +473,14 @@ class Extractor {
         [$data, $dh] = Core::_readOffset((int) $offset);
         @$this->opts['vv'] && print("file: $file dh: ".bin2hex($data_hash)."\n");  // debug
         // var_dump(["file" => $file, "data" => $data]);
-        if ($dh !== $data_hash)
-            Util::error("data hash mismatch expected: ".bin2hex($data_hash)." got: ".bin2hex($dh));
+        if ($dh !== $data_hash) {
+            $error = "File: $file data hash mismatch expected: ".bin2hex($data_hash)." got: ".bin2hex($dh)." read-data-size: ".strlen($data)." use --allow-mismatch to bypass broken files";
+            echo "take 2 on hash:".bin2hex(Core::hash($data))."\n";
+            if ($this->opts['allow-mismatch'])
+                fwrite(STDERR, $error."\n");
+            else
+                Util::error($error); // && DIE !
+        }
         if (strpos($file, '/'))
             $this->_makeDirs($file);
         if (file_exists($file) && ! @$this->opts['overwrite'])
@@ -483,6 +532,9 @@ class Cli extends CliTool {
     /**
      * create new archive
      * pack all files in directory and subdirectories
+     * Options:
+     *   --rewrite  - rewrite existing BigPack files
+     *   --gzip     - try to compress files
      */
     static function init(array $opts) {
         return (new Packer($opts))->init();
@@ -490,10 +542,13 @@ class Cli extends CliTool {
 
     /**
      * add new files to existing archive
+     * Options:
+     *   --gzip     - try to compress files
      */
     static function add(array $opts) {
         return (new Packer($opts))->add();
     }
+
 
     /**
      * list files in archive
@@ -503,11 +558,26 @@ class Cli extends CliTool {
     }
 
     /**
-     * extract specific files from archive
-     * use --all to extract all files
+     * extract all or specific files from archive
+     *
+     * Usage: bigpack extract file1 file2 file3 ...
+     *
+     * Options:
+     *  --all      - extract all files
+     *  --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
+     *                    run "bigpack list" to see all files aand data-hashes
      */
     static function extract(array $opts) {
-        return (new Extractor($opts))->run();
+        return (new Extractor($opts))->extract();
+    }
+
+    /**
+     * remove alredy archived files
+     * will not remove modified files (when archive version != file version)
+     *
+     */
+    static function removeArchived(array $opts) {
+        return (new Packer($opts))->removeArchived();
     }
 
 }
