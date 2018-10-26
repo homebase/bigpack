@@ -31,7 +31,7 @@
  *    store directories (along with permissions)
  *    remove directories (when --rm)
  *       save directory list, try to remove non-empty dirs after
- *    switch to 16 byte prefix - use 40BIT for OFFSET
+ *    switch to 16 byte prefix - use 40BIT for FILESIZE
  *
  *
  * ISSUES: directories - creation / removal / storing
@@ -57,14 +57,16 @@ class Core {
 
     // filenames
     CONST INDEX = 'BigPack.index';
-    CONST DATA = 'BigPack.data';
+    CONST DATA  = 'BigPack.data';
+    CONST MAP   = 'BigPack.map';
+    CONST MAP2  = 'BigPack.map2';
 
-    CONST VERSION = '0.1';
+    CONST VERSION = '0.2.0'; // semver
 
     /**
      * Generator
      *   return items in form:
-     *      [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 7 => "DataOffset"]
+     *      [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
      */
     static function indexReader() {
         $fh_index = fopen(Core::INDEX, "r");
@@ -164,7 +166,7 @@ class Packer {
     function fileScanner() { # Generator that yields [fileName, filenameHash]
         // skip BigData Archive Files
         $fileCallback = function($dir, $file) {
-            if ($file === Core::INDEX || $file === Core::DATA)
+            if ($file === Core::INDEX || $file === Core::DATA || $file === Core::MAP || $file === Core::MAP2)
                 return 1;
         };
         // skip directories with BigData Archives
@@ -386,7 +388,7 @@ class Packer {
      *  -v to see files being removed
      */
     function removeArchived() {
-        // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 7 => "DataOffset"]
+        // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
         foreach (Core::indexReader() as $d) {
             $file = $d[0];
             if (! file_exists($file))
@@ -395,10 +397,12 @@ class Packer {
             if ((int) $file_mtime === (int) $d[4]) {
                 @$this->opts['v']  && print("removing $file\n");
                 unlink($file);
+                @$this->stat['files-removed']++;
             } else {
                 fprintf(STDERR, "can't remove file %s. filemtime is different. expect %d got %d\n", $file, $d[4], $file_mtime);
             }
         }
+        echo json_encode(['stats' => $this->stat]), "\n";
     }
 
 } // class Packer
@@ -465,7 +469,7 @@ class Extractor {
     }
 
     // Extract specific file
-    // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 7 => "DataOffset"]
+    // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
     function _extract(array $d) {
         // var_dump(['extract', $d]);
         [$file, $filename_hash, $data_hash, $mode, $file_mtime, $added_time, $offset] = $d;
@@ -507,6 +511,62 @@ class Extractor {
         #die("$file => $path");
     }
 
+
+} // class Packer
+
+/**
+ * Build
+ * "map" - index of "index"
+ * "map2" - index of "map"
+ */
+class Indexer {
+
+    // public
+    var $opts = []; // options from BigPack.options and Cli
+
+    var $FH2OFFSET = [];
+
+    function __construct(array $opts) {
+        $this->opts = $opts;
+    }
+
+    function index() {
+         //      [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
+        foreach (Core::indexReader() as $d) {
+            $b_offset = substr(pack("P", $d[6]), 0, 6);
+            $this->FH2OFFSET[] = $d[1].$b_offset;
+        }
+        sort($this->FH2OFFSET);
+        //var_dump(count($this->FH2OFFSET));
+        $this->buildMap();
+        $this->buildMap2();
+    }
+
+    /**
+     * BigPack.map is binary file
+     * sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
+     */
+    function buildMap() {
+        $fh_map = Util::openLock(Core::MAP);
+        stream_set_write_buffer($fh_map, 1 << 20);
+        foreach ($this->FH2OFFSET as $d)
+            fwrite($fh_map, $d);
+        fclose($fh_map);
+        echo "MAP: ".count($this->FH2OFFSET), " items \n";
+    }
+
+    function buildMap2() {
+        $fh_map = Util::openLock(Core::MAP2);
+        stream_set_write_buffer($fh_map, 1 << 20);
+        $len = count($this->FH2OFFSET);
+        $cnt = 0;
+        for ($i = 0; $i < $len; $i+=512) {
+            fwrite($fh_map, $this->FH2OFFSET[$i]);
+            $cnt++;
+        }
+        fclose($fh_map);
+        echo "MAP2: $cnt items\n";
+    }
 
 }
 
@@ -579,5 +639,16 @@ class Cli extends CliTool {
     static function removeArchived(array $opts) {
         return (new Packer($opts))->removeArchived();
     }
+
+
+    /**
+     * Build "map", "map2" files. (index indexes)
+     * - "map" (index of index)                  - list of [filehash => offset] (full list)
+     * - "map2" (index of map(index of index))   - list of [filehash => offset] (one record for 512 "map" entries)
+     */
+    static function index(array $opts) {
+        return (new Indexer($opts))->index();
+    }
+
 
 }
