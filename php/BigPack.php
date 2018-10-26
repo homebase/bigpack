@@ -55,6 +55,8 @@ class Core {
     CONST FLAG_GZIP    = 1;
     CONST FLAG_DELETED = 2;
 
+    CONST DATA_PREFIX = 16; // bytes
+
     // filenames
     CONST INDEX = 'BigPack.index';
     CONST DATA  = 'BigPack.data';
@@ -97,22 +99,22 @@ class Core {
      */
     static function _readOffset(int $offset) : array { # [data, data-hash]
         static $READ_BUFFER = 1024 * 16; // 16K
-        static $PREFIX_SIZE = 15;
         // read 16K
         $fh = fopen(Core::DATA, "rb");
-        // DATA IS: Prefix(15byte)+ $data
+        // DATA IS: Prefix + $data
         //    pack("LA10c", $len, $data_hash, $flags).$data;
-        // PREFIX IS: (15 byte)
-        //    uint32 size, byte[10] data-hash, byte flags, byte[$len] data  // 15 byte prefix
+        // PREFIX IS:
+        //    uint32 size, byte size_high_byte, byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
         fseek($fh, $offset, SEEK_SET);
         $data = fread($fh, $READ_BUFFER);
-        $d = unpack("Lsize/a10dh/cflag", $data); // A10 FAILS !!!  - bin2hex(unpack("A6aa", pack("A6", "aaaaa\t") )['aa'])
+        $d = unpack("Lsize/chsize/a10dh/cflag", $data); // LOWERCASE "a", uppercase corrupt data
         // var_dump([$offset, $d]);
-        if ($d['size'] <= $READ_BUFFER-$PREFIX_SIZE) { // prefix size
-            $data = substr($data, $PREFIX_SIZE, $d['size']);
+        if ($d['size'] <= $READ_BUFFER - Core::DATA_PREFIX) { // prefix size
+            $data = substr($data, Core::DATA_PREFIX, $d['size']);
         } else {
-            $data = substr($data, $PREFIX_SIZE);
-            $remaining = $d['size'] - ($PREFIX_SIZE - $READ_BUFFER);
+            $data = substr($data, Core::DATA_PREFIX);
+            $d['size'] += $d['hsize'] << 32; // High Byte #5
+            $remaining = $d['size'] - (Core::DATA_PREFIX - $READ_BUFFER);
             $data = $data.fread($fh, $remaining);
         }
         if ($d['flag'] & Core::FLAG_DELETED)
@@ -121,6 +123,24 @@ class Core {
             $data = gzinflate($data);
         fclose($fh);
         return [$data, $d['dh']];
+    }
+
+    /**
+     * create directories structure (ala mkdir -p) needed to extract file $file
+     * keeps track of existing directories
+     */
+    static function _makeDirs(string $file) {
+        static $dir_exists = []; // dir => 1
+        $path = substr($file, 0, strrpos($file, '/'));
+        if (@$dir_exists[$path])
+            return;
+        if (is_dir($path)) {
+            $dir_exists[$path] = 1;
+            return;
+        }
+        # @$this->opts['vv'] && print("creating directory: $path\n");  // debug
+        mkdir($path, 0775, true);
+        #die("$file => $path");
     }
 
 }
@@ -198,7 +218,7 @@ class Packer {
     /**
      * Update existing Archive, Add NEW Files
      */
-    function add() {
+    function add() : int { # NN files-added
         if (! file_exists(Core::INDEX)) {
             Util::error("no BigPack archive found - refusing to run");
         }
@@ -219,33 +239,37 @@ class Packer {
         }
         fclose($fh_index);
         $offset = filesize(Core::DATA);
-        $this->pack($this->newFileScanner(), $offset);
+        return $this->pack($this->newFileScanner(), $offset);
     }
     /**
      * Create new Archive, add all files
      * Options:
      *   --rewrite  - rewrite existing BigPack files
      */
-    function init() {
+    function init() : int { # NN files-added
         if (file_exists(Core::INDEX)) {
             if (@$this->opts['rewrite']) {
                 unlink(Core::INDEX);
                 unlink(Core::DATA);
+                @unlink(Core::MAP);
+                @unlink(Core::MAP2);
             } else {
-                Util::error("BigPack files already exists - refusing to run. use --rewrite to rebuild archive");
+                Util::error("BigPack files already exists - refusing to run\n".
+                    "use --rewrite to *REMOVE OLD* archive (all archived files will be LOST), and build new one\n".
+                    "Use 'bigpack add' to add new files");
             }
         }
         $archive_info = "BigPack".Core::VERSION." ".gmdate("Ymd His")." ".\get_current_user()."@".\gethostname();
         $this->_write("", join("\t", ["#FileName", "FilenameHash", "DataHash", "FilePerms", "FileMTime", "AddedTime", "DataOffset"])."\n", $archive_info);
         $offset = strlen($archive_info);
-        $this->pack($this->fileScanner(), $offset);
+        return $this->pack($this->fileScanner(), $offset);
     }
 
     /**
      * read files from scanner, pack them into archive
      * --gzip - use gzip on data
      */
-    function pack($scanner, $offset) {
+    function pack($scanner, $offset) : int { # NN files-added
         $this->fh_index = Util::openLock(Core::INDEX);
         $this->fh_data  = Util::openLock(Core::DATA);
         stream_set_write_buffer($this->fh_index, 1 << 16);
@@ -268,6 +292,7 @@ class Packer {
         fclose($this->fh_index);
 
         echo json_encode(['stats' => $this->stat]), "\n";
+        return $this->stat['files'];
     }
 
     /**
@@ -286,7 +311,7 @@ class Packer {
         }
         $len = strlen($data);
         if ($len < 1024) {
-            @$this->stat['files-compression-skippedrun']++;
+            @$this->stat['files-compression-skipped']++;
             return [$data, $flags]; // no compression for small files
         }
         $compressed_data = gzdeflate($data);
@@ -317,13 +342,14 @@ class Packer {
             $this->_write($file, $index, false);
             return 0;
         }
-        // uint32 size, byte[10] data-hash, byte flags, byte[$len] data  // 15 byte prefix
-        $w_data = pack("La10c", $len, $data_hash, $flags).$data;
+        // uint32 size, byte(size_high_byte) byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
+        $len_byte9 = $len >> 32;
+        $w_data = pack("Lca10c", $len, $len_byte9, $data_hash, $flags).$data;
         $this->_write($file, $index, $w_data);
         $this->DATAHASH_OFFSET[$data_hash] = $offset;
         @$this->stat['files']++;
         @$this->stat['file-size'] += $len;
-        return 15 + $len; // prefix(10 + 4 + 1) + data-len
+        return Core::DATA_PREFIX + $len; // prefix(10 + 4 + 1) + data-len
     }
 
     // flush write buffer
@@ -407,6 +433,9 @@ class Packer {
 
 } // class Packer
 
+/**
+ * Index-File Based Extractor
+ */
 class Extractor {
 
     // public
@@ -425,7 +454,7 @@ class Extractor {
         $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
         $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
         if (! $files)
-            Util::error("no files to extract");
+            Util::error("no files to extract, specify list of files or '--all'");
         // ------------------------
         $fh2file = [];  // filehash => $filename
         $fh2d = []; // filehash => $index-line
@@ -486,7 +515,7 @@ class Extractor {
                 Util::error($error); // && DIE !
         }
         if (strpos($file, '/'))
-            $this->_makeDirs($file);
+            Core::_makeDirs($file);
         if (file_exists($file) && ! @$this->opts['overwrite'])
             Util::error("Error: file $file already exists, specify --overwrite to overwrite");
         $r = file_put_contents($file, $data);
@@ -497,22 +526,103 @@ class Extractor {
         chmod($file, $mode);
     }
 
-    function _makeDirs($file) {
-        static $dir_exists = []; // dir => 1
-        $path = substr($file, 0, strrpos($file, '/'));
-        if (@$dir_exists[$path])
-            return;
-        if (is_dir($path)) {
-            $dir_exists[$path] = 1;
-            return;
-        }
-        @$this->opts['vv'] && print("creating directory: $path\n");  // debug
-        mkdir($path, 0775, true);
-        #die("$file => $path");
-    }
+
 
 
 } // class Packer
+
+
+/**
+ * "MAP" file bases extractor
+ *
+ * Can NOT preserve file_mtime and mode
+ *
+ */
+class ExtractorMap {
+
+     // public
+    var $opts = []; // options from BigPack.options and Cli
+    var $map = "";   // sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records
+    var $map_cnt = 0;   // count
+
+    function __construct(array $opts) {
+        $this->opts = $opts;
+        $this->map = file_get_contents(Core::MAP);
+        $this->map_cnt = strlen($this->map) >> 4;
+    }
+
+
+    function extract() {
+        $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
+        $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
+        if (! $files)
+            Util::error("no files to extract, specify list of files or '--all'");
+        foreach ($files as $file) {
+            if (file_exists($file) && ! @$this->opts['overwrite'])
+                Util::error("Error: file $file already exists, specify --overwrite to overwrite");
+            $this->_extract($file);
+        }
+    }
+
+    /**
+     * extract file via filehash
+     */
+    function _extract(string $file) {
+        $fh = Core::hash($file);
+        $offset = $this->_offset($fh);
+        if ($offset === 0)
+            Util::error("No such file $file in archive, aborting"); // && die
+        if (strpos($file, '/'))
+            Core::_makeDirs($file);
+        [$data, $dh] = Core::_readOffset((int) $offset);
+        $r = file_put_contents($file, $data);
+        if ($r === false)
+            Util::error("Can't write to file: $file, aborting");
+    }
+
+    /**
+     * Binary Search In MAP
+     * TODO: use MAP2
+     * TODO: use 16BIT-in-memory MAP3 index for MAP / MAP2
+     */
+    function _offset(string $fh) : int {
+        // MAP only version
+        $from = 0; // middle
+        $to   = $this->map_cnt;
+        $found = false;
+        // $MAP is sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
+        while (1) {
+            $pos = ($from + $to) >> 1;
+            echo "$from <$pos> $to\n";
+            $cfh = substr($this->map, $pos << 4, 10);  // 10 - FileHash length
+            $cmp = strncmp($fh, $cfh, 10);
+            if (! $cmp) { # found it
+                $offset_pack = substr($this->map, ($pos << 4) + 10, 6);
+                return unpack("Pd", $offset_pack."\0\0")['d'];
+            }
+            if ($cmp > 0) {
+                $from = $pos;
+            } else {
+                $to = $pos;
+            }
+            if ($from === $to)
+                return 0;
+        }
+        return 0;
+    }
+}
+
+/**
+ * "MAP2" file bases extractor
+ * Can NOT preserve file_mtime and mode
+ */
+class ExtractorMap2 {
+
+    //
+    // TODO
+    //
+
+}
 
 /**
  * Build
@@ -533,7 +643,7 @@ class Indexer {
     function index() {
          //      [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
         foreach (Core::indexReader() as $d) {
-            $b_offset = substr(pack("P", $d[6]), 0, 6);
+            $b_offset = substr(pack("P", $d[6]), 0, 6); // 64bit INT, little endian
             $this->FH2OFFSET[] = $d[1].$b_offset;
         }
         sort($this->FH2OFFSET);
@@ -565,7 +675,7 @@ class Indexer {
             $cnt++;
         }
         fclose($fh_map);
-        echo "MAP2: $cnt items\n";
+        echo "MAP2: ".number_format($cnt)." items\n";
     }
 
 }
@@ -597,7 +707,8 @@ class Cli extends CliTool {
      *   --gzip     - try to compress files
      */
     static function init(array $opts) {
-        return (new Packer($opts))->init();
+        if ((new Packer($opts))->init()) // if files-added
+            (new Indexer($opts))->index();
     }
 
     /**
@@ -606,7 +717,8 @@ class Cli extends CliTool {
      *   --gzip     - try to compress files
      */
     static function add(array $opts) {
-        return (new Packer($opts))->add();
+        if ((new Packer($opts))->add())  // if files-added
+            (new Indexer($opts))->index();
     }
 
 
@@ -615,6 +727,7 @@ class Cli extends CliTool {
      */
     static function list(array $opts) {
         echo shell_exec("cat BigPack.index | column -t");
+        echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
     }
 
     /**
@@ -628,7 +741,15 @@ class Cli extends CliTool {
      *                    run "bigpack list" to see all files aand data-hashes
      */
     static function extract(array $opts) {
-        return (new Extractor($opts))->extract();
+        (new Extractor($opts))->extract();
+    }
+
+    /**
+     * extract files from archive. (TEST)
+     * Lookups done via "MAP2" / "MAP" file
+     */
+    static function extractMap(array $opts) {
+        (new ExtractorMap($opts))->extract();
     }
 
     /**
@@ -637,7 +758,7 @@ class Cli extends CliTool {
      *
      */
     static function removeArchived(array $opts) {
-        return (new Packer($opts))->removeArchived();
+        (new Packer($opts))->removeArchived();
     }
 
 
@@ -647,7 +768,7 @@ class Cli extends CliTool {
      * - "map2" (index of map(index of index))   - list of [filehash => offset] (one record for 512 "map" entries)
      */
     static function index(array $opts) {
-        return (new Indexer($opts))->index();
+        (new Indexer($opts))->index();
     }
 
 

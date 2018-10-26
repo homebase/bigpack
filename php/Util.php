@@ -35,10 +35,10 @@ class CliTool {
         $class = get_called_class();
         $run = $class."::$command";
         // read options
-        foreach ([$class.".options", $class."/options"] as $fn) {
-            if (file_exists($fn))
-                $args += parse_ini_file($fn); // cli options override options
-        }
+        //foreach ([$class.".options", $class."/options"] as $fn) {
+        //    if (file_exists($fn))
+        //        $args += parse_ini_file($fn); // cli options override options
+        //}
         $run($args);
     }
 
@@ -86,7 +86,7 @@ class Util {
      * show error to STDERR, terminate with ErrorCode
      */
     static function error($message, int $code =1) {
-        fprintf(STDERR, $message);
+        fprintf(STDERR, $message."\n");
         exit($code);
     }
 
