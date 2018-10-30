@@ -31,8 +31,8 @@
  *    store directories (along with permissions)
  *    remove directories (when --rm)
  *       save directory list, try to remove non-empty dirs after
- *    switch to 16 byte prefix - use 40BIT for FILESIZE
  *
+ *    "diff --hard" - iterate over known files. compare Core::hash(content)
  *
  * ISSUES: directories - creation / removal / storing
  *
@@ -62,6 +62,7 @@ class Core {
     CONST DATA  = 'BigPack.data';
     CONST MAP   = 'BigPack.map';
     CONST MAP2  = 'BigPack.map2';
+    CONST MAPH  = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn
 
     CONST VERSION = '0.2.0'; // semver
 
@@ -537,6 +538,9 @@ class Extractor {
  *
  * Can NOT preserve file_mtime and mode
  *
+ * TEST:
+ *   bigpack list --name-only | xargs -n 1 bigpack extractMap
+ *   bigpack list --name-only | xargs -n 100 -P 10 bigpack extractMap
  */
 class ExtractorMap {
 
@@ -557,11 +561,14 @@ class ExtractorMap {
         $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
         if (! $files)
             Util::error("no files to extract, specify list of files or '--all'");
+        $cnt = 0;
         foreach ($files as $file) {
             if (file_exists($file) && ! @$this->opts['overwrite'])
                 Util::error("Error: file $file already exists, specify --overwrite to overwrite");
             $this->_extract($file);
+            $cnt++;
         }
+        echo "$cnt files extracted\n";
     }
 
     /**
@@ -578,28 +585,30 @@ class ExtractorMap {
         $r = file_put_contents($file, $data);
         if ($r === false)
             Util::error("Can't write to file: $file, aborting");
+        # echo $file, "\n";
     }
 
     /**
      * Binary Search In MAP
      * TODO: use MAP2
-     * TODO: use 16BIT-in-memory MAP3 index for MAP / MAP2
+     * TODO: use MAPH - 16BIT index for MAP
      */
     function _offset(string $fh) : int {
         // MAP only version
-        $from = 0; // middle
+        $from = 0;
         $to   = $this->map_cnt;
-        $found = false;
         // $MAP is sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
         while (1) {
             $pos = ($from + $to) >> 1;
-            echo "$from <$pos> $to\n";
+            # echo "$from <$pos> $to\n";
             $cfh = substr($this->map, $pos << 4, 10);  // 10 - FileHash length
             $cmp = strncmp($fh, $cfh, 10);
             if (! $cmp) { # found it
                 $offset_pack = substr($this->map, ($pos << 4) + 10, 6);
                 return unpack("Pd", $offset_pack."\0\0")['d'];
             }
+            if ($pos === $from)
+                return 0;
             if ($cmp > 0) {
                 $from = $pos;
             } else {
@@ -634,7 +643,9 @@ class Indexer {
     // public
     var $opts = []; // options from BigPack.options and Cli
 
-    var $FH2OFFSET = [];
+    var $FH2OFFSET = []; // array of "filehash" (10 byte)."offset" (6 bytes)
+
+    var $FHP2MI = []; // FileHashPrefix(16bit) => MapIndex(UINT32) (MAPH map Hash index)
 
     function __construct(array $opts) {
         $this->opts = $opts;
@@ -650,6 +661,7 @@ class Indexer {
         //var_dump(count($this->FH2OFFSET));
         $this->buildMap();
         $this->buildMap2();
+        $this->buildMapH();
     }
 
     /**
@@ -657,27 +669,55 @@ class Indexer {
      * sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
      */
     function buildMap() {
-        $fh_map = Util::openLock(Core::MAP);
+        $fh_map = Util::openLock(Core::MAP, "wb");
         stream_set_write_buffer($fh_map, 1 << 20);
         foreach ($this->FH2OFFSET as $d)
             fwrite($fh_map, $d);
         fclose($fh_map);
         echo "MAP: ".count($this->FH2OFFSET), " items \n";
+        reset($this->FH2OFFSET);
+        echo "  FirstEntry: ".bin2hex($this->FH2OFFSET[0])."\n";
+        echo "  LastEntry:  ".bin2hex($this->FH2OFFSET[count($this->FH2OFFSET)-1])."\n";
     }
 
     function buildMap2() {
-        $fh_map = Util::openLock(Core::MAP2);
+        $fh_map = Util::openLock(Core::MAP2, "wb");
         stream_set_write_buffer($fh_map, 1 << 20);
         $len = count($this->FH2OFFSET);
         $cnt = 0;
         for ($i = 0; $i < $len; $i+=512) {
-            fwrite($fh_map, $this->FH2OFFSET[$i]);
+            // fwrite($fh_map, $this->FH2OFFSET[$i]);  -- NEED ONLY 10-BYTE FILEHASH
             $cnt++;
         }
         fclose($fh_map);
         echo "MAP2: ".number_format($cnt)." items\n";
     }
 
+    /**
+     * Build FileHash to MapIndex Mapping
+     * 16-bit-filehash-prefix => FIRST-MAP-ITEM-NN
+     * unmapped items points to 0xFFFFFFFF item
+     */
+    function buildMapH() {
+        $NIL = 0xFFFFFFFF; // no data
+        foreach (range(0, 65535) as $i)
+            $this->FHP2MI[$i] = $NIL;  // NO DATA FOUND
+        $cnt = 0;
+        foreach ($this->FH2OFFSET as $i => $fho) {
+            $fhp = unpack("vd", substr($fho, 0, 4))['d'];
+            if ($this->FHP2MI[$fhp] === $NIL) {
+                $this->FHP2MI[$fhp] = $i;
+                $cnt++;
+            }
+        }
+        $fh_map = Util::openLock(Core::MAPH, "wb");
+        stream_set_write_buffer($fh_map, 1 << 20);
+        foreach ($this->FHP2MI as $mi)
+            fwrite($fh_map, pack("V", $mi)); // map-indexes as uint32
+        fclose($fh_map);
+        // var_dump($this->FHP2MI);
+        echo "MAP-HASH: ".number_format($cnt)." items\n";
+    }
 }
 
 /**
@@ -724,8 +764,14 @@ class Cli extends CliTool {
 
     /**
      * list files in archive
+     * Option: --name-only - show only file names
      */
     static function list(array $opts) {
+        if ($opts['name-only']) {
+            foreach (Core::indexReader() as $d)
+                echo $d[0], "\n";
+            return;
+        }
         echo shell_exec("cat BigPack.index | column -t");
         echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
     }
