@@ -674,19 +674,23 @@ class Indexer {
         foreach ($this->FH2OFFSET as $d)
             fwrite($fh_map, $d);
         fclose($fh_map);
-        echo "MAP: ".count($this->FH2OFFSET), " items \n";
-        reset($this->FH2OFFSET);
-        echo "  FirstEntry: ".bin2hex($this->FH2OFFSET[0])."\n";
-        echo "  LastEntry:  ".bin2hex($this->FH2OFFSET[count($this->FH2OFFSET)-1])."\n";
+        echo "MAP: ".number_format(count($this->FH2OFFSET)), " items \n";
+        // echo "  FirstEntry: ".bin2hex($this->FH2OFFSET[0])."\n";  << DEBUG ONLY
+        // echo "  LastEntry:  ".bin2hex($this->FH2OFFSET[count($this->FH2OFFSET)-1])."\n";
     }
 
+    /**
+     * BigPack.map2 is binary file
+     * 1/512 subset of BigPack.map
+     * sorted list of "filehash" (10 byte)
+     */
     function buildMap2() {
         $fh_map = Util::openLock(Core::MAP2, "wb");
         stream_set_write_buffer($fh_map, 1 << 20);
         $len = count($this->FH2OFFSET);
         $cnt = 0;
         for ($i = 0; $i < $len; $i+=512) {
-            // fwrite($fh_map, $this->FH2OFFSET[$i]);  -- NEED ONLY 10-BYTE FILEHASH
+            fwrite($fh_map, substr($this->FH2OFFSET[$i], 0, 10)); // NEED ONLY 10-BYTE FILEHASH
             $cnt++;
         }
         fclose($fh_map);
@@ -695,7 +699,7 @@ class Indexer {
 
     /**
      * Build FileHash to MapIndex Mapping
-     * 16-bit-filehash-prefix => FIRST-MAP-ITEM-NN
+     * 16-bit-filehash-prefix => FIRST-MAP-ITEM-NN  --- FILE GZIPPED !!!
      * unmapped items points to 0xFFFFFFFF item
      */
     function buildMapH() {
@@ -710,11 +714,17 @@ class Indexer {
                 $cnt++;
             }
         }
-        $fh_map = Util::openLock(Core::MAPH, "wb");
-        stream_set_write_buffer($fh_map, 1 << 20);
+        $s = [];
         foreach ($this->FHP2MI as $mi)
-            fwrite($fh_map, pack("V", $mi)); // map-indexes as uint32
-        fclose($fh_map);
+            $s[] = pack("V", $mi);
+        $file = Core::MAPH;
+        $s = gzdeflate(join("", $s), 9);
+        $r = file_put_contents($file, $s);
+        if ($r === false)
+            Util::error("Can't write to file: $file, aborting");
+        #$fh_map = Util::openLock(Core::MAPH, "wb");
+        #    fwrite($fh_map, pack("V", $mi)); // map-indexes as uint32
+        #fclose($fh_map);
         // var_dump($this->FHP2MI);
         echo "MAP-HASH: ".number_format($cnt)." items\n";
     }
