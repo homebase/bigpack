@@ -102,13 +102,7 @@ class ExtractorWeb extends ExtractorMap2 {
             echo "<h1>File <u>$file</u> Not Found</h1>";
             return;
         }
-        {
-            $ext_pos = strrpos($file, '.', 1);
-            $ext = $ext_pos !== false ? substr($file, $ext_pos +1 ) : "html";
-            $mime_type = $this->mime_types[$ext] ?? "text/html";
-            header("Content-Type: $mime_type");
-        }
-        [$data, $dh] = Core::_readOffset((int) $offset);
+        [$data, $dh, $gzip] = Core::_readOffset((int) $offset, 1);
         $etag = bin2hex($dh);
         if ($query_etag = @$_SERVER['HTTP_IF_NONE_MATCH']) {
             if ($query_etag === $etag) {
@@ -116,6 +110,14 @@ class ExtractorWeb extends ExtractorMap2 {
                 return;
             }
         }
+        if ($gzip)
+            header("Content-Encoding: deflate"); // serve compressed data
+        //
+        $ext_pos = strrpos($file, '.', 1);
+        $ext = $ext_pos !== false ? substr($file, $ext_pos +1 ) : "html";
+        $mime_type = $this->mime_types[$ext] ?? "text/html";
+        header("Content-Type: $mime_type");
+        //
         header("Etag: $etag");
         if ($this->expires_min)
             header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + ($this->expires_min * 60)));

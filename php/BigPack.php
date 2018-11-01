@@ -53,7 +53,7 @@ use hb\util\Util;
 include __DIR__."/Util.php";     // \hb\util - generic classes
 
 /**
- * Actual BigPack Class
+ * Common methods
  */
 class Core {
 
@@ -71,7 +71,7 @@ class Core {
     CONST MAPH  = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn
     CONST OPTIONS  = 'BigPack.options'; // key=value file, php.ini format
 
-    CONST VERSION = '1.0.0'; // semver
+    CONST VERSION = '1.0.1'; // semver
 
     /**
      * Generator
@@ -105,7 +105,7 @@ class Core {
      * - support is-deleted
      * @see Packer::_write for a writer
      */
-    static function _readOffset(int $offset) : array { # [data, data-hash]
+    static function _readOffset(int $offset, $raw = false) : array { # [data, data-hash] || [data, data-hash, $is_gzip]
         static $READ_BUFFER = 1024 * 16; // 16K
         // read 16K
         $fh = fopen(Core::DATA, "rb");
@@ -125,11 +125,13 @@ class Core {
             $remaining = $d['size'] - (Core::DATA_PREFIX - $READ_BUFFER);
             $data = $data.fread($fh, $remaining);
         }
+        fclose($fh);
         if ($d['flag'] & Core::FLAG_DELETED)
             return ["", ""]; // File Deleted
+        if ($raw)
+            return [$data, $d['dh'], $d['flag'] & Core::FLAG_GZIP];
         if ($d['flag'] & Core::FLAG_GZIP)
             $data = gzinflate($data);
-        fclose($fh);
         return [$data, $d['dh']];
     }
 
