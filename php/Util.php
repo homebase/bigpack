@@ -65,6 +65,7 @@ class CliTool {
                 }
             }
         }
+        echo "\n";
         exit;
     }
 
@@ -187,7 +188,7 @@ class Util {
                          ?callable $dirEntryCallback = null) { # Generator >> Path/File
         $dir = $base_dir . ($rdir ? "/$rdir" : "");
         foreach (scandir($dir) as $file) {
-            if ($file{0} === ".") // no cur-dir / hidden files
+            if ($file{0} === ".") // no cur-dir / hidden files / hidden directories
                 continue;
             if ($fileCallback && $fileCallback($dir, $file))
                 continue;

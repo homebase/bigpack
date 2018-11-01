@@ -3,15 +3,17 @@
 /**
  *
  * TODO:
- *   1. HTTP-ETAG tag  == ContentHash support
- *   2. HTTP-Expires Tag
  *   3. File Deletion (flag - file - deleted - serve HTTP-GONE(410 CODE))
- *   4. Parallel Adding of files (buffered save)
+ *   4. Fast file adder for huge volumes:
+ *        a. find php/ -printf "%p\t%m\t%T@\n"  > filelist.bigpack  (file, mode, last-change-time)
+ *        b. V1. (gnu-parallel)  cat filelist.bigpack | parallel "md5sum file-group" | formatter > filelist-md5.bigpack
+ *           V2: (parallel xargs) cat filelist.bigpack | xargs -P 16 -n 200 (md5sum+formatter) > filelist-md5.bigpack
+ *        c. bigpack init/add --prepared-file=filelist-md5.bigpack
+ *
  *   5. Service - adding files in runtime - buffer + rebuild
  *      new-files buffer, then merge-sort + index rebuild
- *   6. Using 2**BITS hash prefix index instead of map2
  *
- * BigPackAdder Class - diff cases for "init, add, update"
+ *   6. [??] MAPH index use. seems like benefits are negligible. MAP2 is better
  *
  * Global Options:
  *     dir  : dir where to take source files
@@ -19,7 +21,9 @@
  *     vv   : very-verbose (show debug info)
  *
  * Packer options:
- *     no-gzip : space delimited list of file extensions not to even-try to compress. use "--vv" to see default list
+ *     gzip=0  : disable gzip
+ *     gzip=1  : enable gzip (default)
+ *     skip-gzip : space delimited list of file extensions not to even-try to compress. use "--vv" to see default list
  *     rm      : remove archived files
  *
  * testing:
@@ -32,13 +36,15 @@
  *    remove directories (when --rm)
  *       save directory list, try to remove non-empty dirs after
  *
- *    "diff --hard" - iterate over known files. compare Core::hash(content)
+ *    "diff --hard" - iterate over known files. compare Core::hash(content
+ *    gzipped files and HTTP server !! - DO NOT NEED TO DECOMPRESS
  *
  * ISSUES: directories - creation / removal / storing
  *
  */
 
 
+// HB = homebase framework namespace
 namespace hb\bigpack;
 
 use hb\util\CliTool;
@@ -63,8 +69,9 @@ class Core {
     CONST MAP   = 'BigPack.map';
     CONST MAP2  = 'BigPack.map2';
     CONST MAPH  = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn
+    CONST OPTIONS  = 'BigPack.options'; // key=value file, php.ini format
 
-    CONST VERSION = '0.2.0'; // semver
+    CONST VERSION = '1.0.0'; // semver
 
     /**
      * Generator
@@ -108,7 +115,7 @@ class Core {
         //    uint32 size, byte size_high_byte, byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
         fseek($fh, $offset, SEEK_SET);
         $data = fread($fh, $READ_BUFFER);
-        $d = unpack("Lsize/chsize/a10dh/cflag", $data); // LOWERCASE "a", uppercase corrupt data
+        $d = unpack("Lsize/chsize/a10dh/cflag", $data); // LOWERCASE "a", uppercase "A" corrupt data
         // var_dump([$offset, $d]);
         if ($d['size'] <= $READ_BUFFER - Core::DATA_PREFIX) { // prefix size
             $data = substr($data, Core::DATA_PREFIX, $d['size']);
@@ -150,7 +157,10 @@ class Packer {
 
     static $WRITE_BUFFER_FILES   = 1000;        // NN files to keep in write buffer
     static $WRITE_BUFFER_SIZE    = 10 << 20;    // size in MB
-    static $no_gzip_default = "gz bz2 tgz xz jpg jpeg gif png webp zip 7z rar";
+    static $skip_gzip_default = "gz bz2 tgz xz jpg jpeg gif png webp zip 7z rar";
+
+    // never add this files to BigPack archive
+    static $EXCLUDE_FILES = [Core::INDEX => 1, Core::DATA => 1, Core::MAP => 1, Core::MAP2 => 1, Core::MAPH => 1, "BigPack.options"];
 
     // public
     var $opts = []; // options from BigPack.options and Cli
@@ -166,16 +176,17 @@ class Packer {
     // file handles
     private  $fh_index;
     private  $fh_data;
-    private  $no_gzip; //
+    private  $skip_gzip; //
 
     function __construct(array $opts) {
         $this->opts = $opts;
         $this->now = time();
         $this->dir = $this->opts["dir"] ?? "."; // "--dir=xxx" or current dir
-        $no_gzip = $opts['no-gzip'] ?? self::$no_gzip_default; // space delimited list of extensions
-        $this->no_gzip = array_flip(explode(" ", ' '.$no_gzip)); // ext => 1
+        $this->opts["gzip"] = $this->opts["gzip"] ?? 1; // Default GZIP is ON
+        $skip_gzip = $opts['skip-gzip'] ?? self::$skip_gzip_default; // space delimited list of extensions
+        $this->skip_gzip = array_flip(explode(" ", ' '.$skip_gzip)); // ext => 1
         if (@$args['vv'])  // -vv = very-verbose
-            echo json_encode(['options' => $args, 'no-gzip' => $this->no_gzip]), "\n";
+            echo json_encode(['options' => $args, 'skip-gzip' => $this->skip_gzip]), "\n";
     }
 
 
@@ -187,7 +198,7 @@ class Packer {
     function fileScanner() { # Generator that yields [fileName, filenameHash]
         // skip BigData Archive Files
         $fileCallback = function($dir, $file) {
-            if ($file === Core::INDEX || $file === Core::DATA || $file === Core::MAP || $file === Core::MAP2)
+            if (@Packer::$EXCLUDE_FILES[$file])
                 return 1;
         };
         // skip directories with BigData Archives
@@ -217,7 +228,7 @@ class Packer {
     }
 
     /**
-     * Update existing Archive, Add NEW Files
+     *  Add NEW Files to existing  archive
      */
     function add() : int { # NN files-added
         if (! file_exists(Core::INDEX)) {
@@ -244,8 +255,6 @@ class Packer {
     }
     /**
      * Create new Archive, add all files
-     * Options:
-     *   --rewrite  - rewrite existing BigPack files
      */
     function init() : int { # NN files-added
         if (file_exists(Core::INDEX)) {
@@ -298,14 +307,14 @@ class Packer {
 
     /**
      * try to compress data
-     * - files with extensions listed in no-gzip excluded
+     * - files with extensions listed in skip-gzip excluded
      * - require at least 5% compression
      * - no compression for files less than 1024 bytes
      */
     function _compress(string $file, $flags, string $data) {
         if ($ext_p = strrpos($file, '.')) {
             $ext = substr($file, $ext_p+1);
-            if (@$this->no_gzip[$ext]) {
+            if (@$this->skip_gzip[$ext]) {
                 @$this->stat['files-compression-disallowed']++;
                 return [$data, $flags]; // no compression for specific extensions
             }
@@ -413,6 +422,7 @@ class Packer {
      * remove files already in archive, use FILEMTIME to compare
      *
      *  -v to see files being removed
+     *  --force - ignore file-modification-time difference
      */
     function removeArchived() {
         // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
@@ -421,6 +431,8 @@ class Packer {
             if (! file_exists($file))
                 continue;
             $file_mtime = filemtime($file);
+            if (@$this->opts['force'])
+                $file_mtime = (int) $d[4];
             if ((int) $file_mtime === (int) $d[4]) {
                 @$this->opts['v']  && print("removing $file\n");
                 unlink($file);
@@ -541,6 +553,8 @@ class Extractor {
  * TEST:
  *   bigpack list --name-only | xargs -n 1 bigpack extractMap
  *   bigpack list --name-only | xargs -n 100 -P 10 bigpack extractMap
+ *
+ * Debug: view MAP2 file: xxd -c 16  BigPack.map
  */
 class ExtractorMap {
 
@@ -551,10 +565,13 @@ class ExtractorMap {
 
     function __construct(array $opts) {
         $this->opts = $opts;
+        $this->init();
+    }
+
+    function init() {
         $this->map = file_get_contents(Core::MAP);
         $this->map_cnt = strlen($this->map) >> 4;
     }
-
 
     function extract() {
         $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
@@ -600,7 +617,7 @@ class ExtractorMap {
         // $MAP is sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
         while (1) {
             $pos = ($from + $to) >> 1;
-            # echo "$from <$pos> $to\n";
+            // echo "$from <$pos> $to\n";
             $cfh = substr($this->map, $pos << 4, 10);  // 10 - FileHash length
             $cmp = strncmp($fh, $cfh, 10);
             if (! $cmp) { # found it
@@ -624,14 +641,78 @@ class ExtractorMap {
 /**
  * "MAP2" file bases extractor
  * Can NOT preserve file_mtime and mode
+ * DEBUG: view MAP2 file: xxd -c 10  BigPack.map2
+ * TEST: bigpack list --name-only | xargs -n 300 bigpack extractMap
  */
-class ExtractorMap2 {
+class ExtractorMap2 extends ExtractorMap {
 
-    //
-    // TODO
-    //
+    function init() {
+        $this->map = file_get_contents(Core::MAP2);
+        $this->map_cnt = strlen($this->map) / 10;  // 10 byte items
+    }
+
+    /**
+     * Binary Search In MAP2
+     * Load MAP
+     * Binary Search In MAP
+     * TODO: use MAPH - 16BIT index for MAP
+     */
+    function _offset(string $fh) : int {
+        $block = $this->_mapIndex($fh);
+        // Util::error("block #".$block);
+        $H = new _ExtractorMapBlock(['block' => $block]);
+        return $H->_offset($fh);
+    }
+
+    /**
+     * NON-EXACT BinarySearch of MAP2 index
+     * return NN-of-(8kb)block-in-MAP file
+     */
+    function _mapIndex(string $fh) : int { # NN-of-block-in-MAP file
+        // MAP only version
+        $from = 0;
+        $to   = $this->map_cnt;
+        // $MAP is sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
+        while (1) {
+            $pos = ($from + $to) >> 1;
+            # echo "$from <$pos> $to\n";
+            $cfh = substr($this->map, $pos * 10, 10);  // 10 - FileHash length
+            $cmp = strncmp($fh, $cfh, 10);
+            if (! $cmp) { # found it
+                return $pos;
+            }
+            if ($pos === $from) {
+                return $pos;
+            }
+            if ($cmp > 0) {
+                $from = $pos;
+            } else {
+                $to = $pos;
+            }
+            if ($from === $to) {
+                return $pos;
+            }
+        }
+        return 0;
+    }
 
 }
+
+/**
+ * internal helper for MAP2 extractor
+ */
+class _ExtractorMapBlock extends ExtractorMap {
+
+    function init() {
+        $block = $this->opts['block'];
+        $fh = fopen(Core::MAP, "rb");
+        fseek($fh, $block * 8192);
+        $this->map = fread($fh, 8192);
+        $this->map_cnt = strlen($this->map) >> 4;  // 16 byte items
+    }
+
+}
+
 
 /**
  * Build
@@ -661,7 +742,7 @@ class Indexer {
         //var_dump(count($this->FH2OFFSET));
         $this->buildMap();
         $this->buildMap2();
-        $this->buildMapH();
+        // $this->buildMapH(); - DO NOT SEE ANY REASON to use MAPH. MAP2+MAP is already FAST enough - at least on my tests
     }
 
     /**
@@ -753,8 +834,11 @@ class Cli extends CliTool {
      * create new archive
      * pack all files in directory and subdirectories
      * Options:
-     *   --rewrite  - rewrite existing BigPack files
-     *   --gzip     - try to compress files
+     *   --rm       - remove files after add
+     *   --dir      - directory to take files from (default current directory)
+     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
+     *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
+     *   --rewrite  - rewrite existing BigPack files. CAUTION: you'll lose previosly archived files!
      */
     static function init(array $opts) {
         if ((new Packer($opts))->init()) // if files-added
@@ -764,7 +848,10 @@ class Cli extends CliTool {
     /**
      * add new files to existing archive
      * Options:
-     *   --gzip     - try to compress files
+     *   --rm       - remove files after add
+     *   --dir      - directory to take files from (default current directory)
+     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
+     *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
      */
     static function add(array $opts) {
         if ((new Packer($opts))->add())  // if files-added
@@ -774,16 +861,33 @@ class Cli extends CliTool {
 
     /**
      * list files in archive
-     * Option: --name-only - show only file names
+     * default timezone from php.ini is used to show dates
+     * hint: use "bigpack list | column -t" for better layout formatting
+     * Options:
+     *   --name-only - show only file names
+     *   --raw       - show raw data
      */
     static function list(array $opts) {
-        if ($opts['name-only']) {
+        if (@$opts['name-only']) {
             foreach (Core::indexReader() as $d)
                 echo $d[0], "\n";
             return;
         }
-        echo shell_exec("cat BigPack.index | column -t");
-        echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
+        if (@$opts['raw']) {
+            echo shell_exec("cat BigPack.index | column -t");
+            echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
+            return;
+        }
+        // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
+        foreach (Core::indexReader() as $d) {
+            $d[1] = bin2hex($d[1]);
+            $d[2] = bin2hex($d[2]);
+            $d[3] = base_convert($d[3], 10, 8);
+            $d[4] = date("Y-m-d H:i:s", $d[4]);
+            $d[5] = date("Y-m-d H:i:s", $d[5]);
+            $d[6] = number_format($d[6]);
+            echo join("\t", $d), "\n";
+        }
     }
 
     /**
@@ -801,11 +905,19 @@ class Cli extends CliTool {
     }
 
     /**
-     * extract files from archive. (TEST)
-     * Lookups done via "MAP2" / "MAP" file
+     * DEBUG: extract files from archive.
+     * Lookups done via "MAP" file
      */
     static function extractMap(array $opts) {
         (new ExtractorMap($opts))->extract();
+    }
+
+    /**
+     * DEBUG: extract files from archive.
+     * Lookups done via "MAP2, MAP" files
+     */
+    static function extractMap2(array $opts) {
+        (new ExtractorMap2($opts))->extract();
     }
 
     /**
@@ -825,6 +937,30 @@ class Cli extends CliTool {
      */
     static function index(array $opts) {
         (new Indexer($opts))->index();
+    }
+
+    /**
+     * generate index.html with links to all files stored in bigpack
+     */
+    static function generateIndex(array $opts) {
+        $cmd = __DIR__.'/bigpack list --name-only | perl -ne \'chomp; print "$. <a href=\\"$_\\">$_</a><br>\n"\'';
+        // echo $cmd;
+        shell_exec("$cmd > index.html");
+    }
+
+    /**
+     * run bigpack server (using php buildin web server)
+     *
+     * --port = port to run - default is 8080
+     * --host = host ro run - default is localhost
+     *
+     */
+    static function server(array $opts) {
+        $port = $opts['port'] ?? 8080;
+        $host = $opts['host'] ?? "localhost";
+        $server = __DIR__."/bigpack-server";
+        echo "Starting bigpack php-web server. http://$host:$port\n";
+        shell_exec("php -S $host:$port $server");
     }
 
 
