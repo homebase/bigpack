@@ -81,18 +81,15 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 ## bigpack-sync $remote
  * rsync changes + (optionally) reload remote web-service
 
-# BigPack Server
+# BigPack Server (PHP)
 
-## "bigpack-server $dir" command (golang)
-* Start a webserver, that serves files from  BigPack files, or from filesystem
-    * deep directories with BigPack are checked first
-    * only then filesystem.
-    * Implementation language: golang
-    * Bigpack files have priority over filesystem.
+## "bigpack server" command
+* Start a webserver, that serves files from  BigPack
 * Options:
-    * --port=port  - tcp port number - default 8080
-    * --socket=filename   - unix socket name
+    * --port   - tcp port number - default 8080
+    * --host   - hostname listen to
 
+# BigPack Server (GOLANG)
 
 # Internals
 
