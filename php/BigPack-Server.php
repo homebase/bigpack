@@ -3,17 +3,16 @@
 /**
  *
  * Sample Bigpack Server
- *
  * Required Module APCU
+ *
+ * BigPack.options file:
+ *     mime-types=/etc/mime.types   << DEFAULT (use same format)
+ *     expires-minutes=50            << DEFAULT 0
  *
  * TODO:
  *   [+] HTTP-ETAG tag  == ContentHash support
  *   [+] HTTP-Expires Tag
- *   [+] Options file:
- *
- *     mime-types: /etc/mime.types   << DEFAULT (use same format)
- *     expires-minutes: 0            << DEFAULT 0
- *
+ *   [+] HTTP 410 GONE for deleted files
  */
 
 

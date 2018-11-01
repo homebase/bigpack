@@ -31,6 +31,7 @@
  *
  *
  * @todo :
+ *    delete-content - mark content as deleted (e.g. DMCA request)
  *    store directories (along with permissions)
  *    remove directories (when --rm)
  *       save directory list, try to remove non-empty dirs after
