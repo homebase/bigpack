@@ -3,7 +3,6 @@
 /**
  *
  * TODO:
- *   3. File Deletion (flag - file - deleted - serve HTTP-GONE(410 CODE))
  *   4. Fast file adder for huge volumes:
  *        a. find php/ -printf "%p\t%m\t%T@\n"  > filelist.bigpack  (file, mode, last-change-time)
  *        b. V1. (gnu-parallel)  cat filelist.bigpack | parallel "md5sum file-group" | formatter > filelist-md5.bigpack
@@ -162,7 +161,7 @@ class Packer {
     static $skip_gzip_default = "gz bz2 tgz xz jpg jpeg gif png webp zip 7z rar";
 
     // never add this files to BigPack archive
-    static $EXCLUDE_FILES = [Core::INDEX => 1, Core::DATA => 1, Core::MAP => 1, Core::MAP2 => 1, Core::MAPH => 1, "BigPack.options"];
+    static $EXCLUDE_FILES = [Core::INDEX => 1, Core::DATA => 1, Core::MAP => 1, Core::MAP2 => 1, Core::MAPH => 1, Core::OPTIONS => 1];
 
     // public
     var $opts = []; // options from BigPack.options and Cli

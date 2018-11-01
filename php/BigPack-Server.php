@@ -112,6 +112,10 @@ class ExtractorWeb extends ExtractorMap2 {
         }
         if ($gzip)
             header("Content-Encoding: deflate"); // serve compressed data
+        if (! $data && ! $dh) {
+            header("HTTP/1.1 410 Gone");
+            return;
+        }
         //
         $ext_pos = strrpos($file, '.', 1);
         $ext = $ext_pos !== false ? substr($file, $ext_pos +1 ) : "html";
