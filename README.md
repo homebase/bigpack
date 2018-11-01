@@ -21,9 +21,9 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 * Limits:
     * Archive(Shard) Size: `256TB (2**48)`
     * Max Shards: `65536 (2**16)`
-    * Max Stored Data Size: `16,777PB` || `16.7EB`
-    * Archived File Size: `1TB (2**40)`
-    * Archived File Count: `4.3B (2**32)`
+    * Max Stored Data Size: `16,777PB (petabytes)` || `16.7EB (exabytes)`
+    * Archived File Max-Size: `1TB (2**40)`
+    * Archived File Count: `4.3 Billion files (2**32)`
     * File-Content-Hash: `80bit`
     * File-Name-Hash: `80bit`
     * recommendation: split data in shards, keep shards relatively small - ~10 - 20GB

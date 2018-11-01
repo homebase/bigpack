@@ -956,6 +956,8 @@ class Cli extends CliTool {
      *
      */
     static function server(array $opts) {
+        if (!function_exists("apcu_fetch"))
+            Util::error("install PHP-APCU - http://php.net/manual/en/intro.apcu.php");
         $port = $opts['port'] ?? 8080;
         $host = $opts['host'] ?? "localhost";
         $server = __DIR__."/bigpack-server";
