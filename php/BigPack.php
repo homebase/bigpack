@@ -32,6 +32,7 @@
  *
  * @todo :
  *    delete-content - mark content as deleted (e.g. DMCA request)
+ *                     deleteContent()
  *    store directories (along with permissions)
  *    remove directories (when --rm)
  *       save directory list, try to remove non-empty dirs after
@@ -460,6 +461,8 @@ class Extractor {
         $this->opts = $opts;
     }
 
+    // extract one or more files
+    // --cat = dump file to stdout
     function extract() {
         // processing CLI options
         if (@$this->opts['all'])
@@ -528,6 +531,10 @@ class Extractor {
                 fwrite(STDERR, $error."\n");
             else
                 Util::error($error); // && DIE !
+        }
+        if (@$this->opts['cat']) {
+            echo $data;
+            return;
         }
         if (strpos($file, '/'))
             Core::_makeDirs($file);
@@ -598,9 +605,9 @@ class ExtractorMap {
         $offset = $this->_offset($fh);
         if ($offset === 0)
             Util::error("No such file $file in archive, aborting"); // && die
+        [$data, $dh] = Core::_readOffset((int) $offset);
         if (strpos($file, '/'))
             Core::_makeDirs($file);
-        [$data, $dh] = Core::_readOffset((int) $offset);
         $r = file_put_contents($file, $data);
         if ($r === false)
             Util::error("Can't write to file: $file, aborting");
@@ -901,6 +908,7 @@ class Cli extends CliTool {
      *  --all      - extract all files
      *  --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
      *                    run "bigpack list" to see all files aand data-hashes
+     *  --cat      - dump file to STDOUT
      */
     static function extract(array $opts) {
         (new Extractor($opts))->extract();
@@ -933,12 +941,26 @@ class Cli extends CliTool {
 
 
     /**
-     * Build "map", "map2" files. (index indexes)
+     * Build Indexes: "map", "map2" files - called automatically after "init, add"
      * - "map" (index of index)                  - list of [filehash => offset] (full list)
      * - "map2" (index of map(index of index))   - list of [filehash => offset] (one record for 512 "map" entries)
      */
     static function index(array $opts) {
         (new Indexer($opts))->index();
+    }
+
+    /**
+     * mark content as "deleted"
+     * all files mapped to this content will become unavailable
+     * web service will return "410 GONE" for this files
+     *
+     * bigpack deleteContent file1 file2 ...
+     *
+     * Option:
+     *  --undelete  : restore content
+     */
+    static function deleteContent(array $opts) {
+        (new Packer($opts))->deleteContent();
     }
 
     /**
