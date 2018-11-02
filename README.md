@@ -5,8 +5,8 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 
 * Pack lots of files in directory/sub-directories into several files (data file + indexes)
 * Deduplicate File Contents
-* compress files (gzip compression is used internally (when appropriate))
-  same or better compression than tar.gz
+* compress files (gzdeflate is used internally (when appropriate))
+  better compression level than tar.gz
 * Optionally shards files (up to 65536 shards) (todo)
 * Serve specific files via http fast
   * Limiting factor is your Network/SSD/KernelTCPStack speed
@@ -40,18 +40,19 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 
 # Cli Tools
 
+* run `bigpack help` to see all commands
+* run `bigpack help CommandName` to see command help / options
+
 ## bigpack init
 * compress all files in directory/subdirectories
-* removes added files (optionally)
 * build indexes
 
 ## bigpack add
 * adds new files to BigPack
-* removes added files (optionally)
 * ignores existing files
 * rebuild indexes
 
-## bigpack update
+## bigpack update (TODO)
 * adds new file contents to BigPack (old content kept intact)
 * removes added files (optionally)
 * no-longer relevant filename to content mapping stored in BigPack.deleted file
@@ -64,12 +65,17 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 * Extract packed files
 * Extract specific file, file+revision from archive
 
-## bigpack delete
-* Remove specific files from index
-* no-longer relevant filename to content mapping stored in BigPack.deleted file
-* rebuild indexes
+## bigpack deleteContent `[--undelete]`
+* Mark specific Content as Deleted/Undeleted (e.g. DMCA request)
+* web server will return HTTP 410 GONE for files
 
-## bigpack purge
+## bigpack generateIndex
+* generate `index.html` with links to all files stored in bigpack
+
+## bigpack removeArchived
+* remove alredy archived files (file last-modification-check performed)
+
+## bigpack purge (TODO)
 * removes unused file contents, clean up BigPack.deleted
 * rebuild indexes
 * optionally specify how many revisions you want to retain
@@ -79,17 +85,21 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
  * rebuild indexes
 
 ## bigpack-sync $remote
- * rsync changes + (optionally) reload remote web-service
+ * SAFE rsync Bigpack, remote web server will be automatically reloaded
 
-# BigPack Server (PHP)
-
-## "bigpack server" command
+## bigpack server
 * Start a webserver, that serves files from  BigPack
+* even this server is good enough when placed behind nginx
+* run single-thread PHP server
+* minimal memory requirements
 * Options:
     * --port   - tcp port number - default 8080
     * --host   - hostname listen to
+* supports ETAG, EXPIRES
+* compressed(gzdeflate) files served as compressed
 
-# BigPack Server (GOLANG)
+## BigPack Server (GOLANG)
+* bigpack-server-go
 
 # Internals
 
