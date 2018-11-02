@@ -9,10 +9,17 @@
  *     mime-types=/etc/mime.types   << DEFAULT (use same format)
  *     expires-minutes=50            << DEFAULT 0
  *
+ * Safe sync procedure: - no requests lost
+ *   1. rsync BigPack.data (data files are incremental)
+ *   2. rsync BigPack.map2 (map2 file is always cached)
+ *   3. rsync BigPack.map  (rsync replaces file instantly)
+ *
  * TODO:
  *   [+] HTTP-ETAG tag  == ContentHash support
  *   [+] HTTP-Expires Tag
  *   [+] HTTP 410 GONE for deleted files
+ *   [+] MAP2/MAP out of sync (new MAP file upload)
+ *       re-read MAP2 file, try again, if still out-of-sync - return 500
  */
 
 
@@ -24,27 +31,32 @@ use hb\util\Util;
 
 /**
  * Sample BigPack Server
+ * Caching Wrapper
  */
 class Server {
 
+    // shared memory key
+    // SHM Data shared only between php-fpm / parent-php-process-children
+    static $MAP2_SHM_KEY = "Bigpack.MAP2";
     // $_SERVER['REQUEST_URI'])
     static function serve($uri) {
         if(!defined('STDERR'))
             define('STDERR', fopen('php://stderr', 'w'));
         if (!function_exists("apcu_fetch"))
             Util::error("install APCU - http://php.net/manual/en/intro.apcu.php");
-        $KEY = "BigpackServer";
-        $S = apcu_fetch($KEY);
-        #$S = 0;
+        $S = apcu_fetch(self::$MAP2_SHM_KEY);
         if (! $S) {
             $S = new ExtractorWeb([]);
-            apcu_store($KEY, $S);
+            apcu_store(self::$MAP2_SHM_KEY, $S);
         }
         $S->serve($uri);
     }
 
 }
 
+/**
+ * Actual BigPack Web Service
+ */
 class ExtractorWeb extends ExtractorMap2 {
 
     var $mime_types;  // EXT => mime type
@@ -91,6 +103,8 @@ class ExtractorWeb extends ExtractorMap2 {
     }
 
     function serve(string $uri) {
+        // @$this->stats['requests']++;
+        // fwrite(STDERR, json_encode([$this->stats, $this->opts])."\n");
         $file = substr($uri, 1) ?: "index.html";
         if ($file{-1} === '/')
             $file .= "index.html";
@@ -98,7 +112,12 @@ class ExtractorWeb extends ExtractorMap2 {
         $offset = $this->_offset($fh);
         if ($offset === 0) {
             header("HTTP/1.0 404 Not Found");
-            echo "<h1>File <u>$file</u> Not Found</h1>";
+            echo "<h1>Error 404 - File <u>$file</u> Not Found</h1>";
+            return;
+        }
+        if ($offset === 1) {
+            header("HTTP/1.0 500 Not Found");
+            echo "<h1>Error 500 - Source files out of sync</h1>";
             return;
         }
         [$data, $dh, $gzip] = Core::_readOffset((int) $offset, 1);

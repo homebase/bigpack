@@ -605,6 +605,8 @@ class ExtractorMap {
         $offset = $this->_offset($fh);
         if ($offset === 0)
             Util::error("No such file $file in archive, aborting"); // && die
+        if ($offset === 1)
+            Util::error("File $file extract error"); // && die
         [$data, $dh] = Core::_readOffset((int) $offset);
         if (strpos($file, '/'))
             Core::_makeDirs($file);
@@ -616,8 +618,8 @@ class ExtractorMap {
 
     /**
      * Binary Search In MAP
-     * TODO: use MAP2
-     * TODO: use MAPH - 16BIT index for MAP
+     * @return int 0 - File Not Found, 1 - Error, 10+ offset in DATA file
+     *
      */
     function _offset(string $fh) : int {
         // MAP only version
@@ -662,15 +664,32 @@ class ExtractorMap2 extends ExtractorMap {
 
     /**
      * Binary Search In MAP2
-     * Load MAP
+     * Load MAP Block
      * Binary Search In MAP
-     * TODO: use MAPH - 16BIT index for MAP
+     * TODO: use MAPH - 16BIT index for MAP << NO
+     * @return int 0 - File Not Found, 1 - Error, 10+ offset in DATA file
      */
-    function _offset(string $fh) : int {
+    function _offset(string $fh, $retry = 0) : int {
         $block = $this->_mapIndex($fh);
         // Util::error("block #".$block);
         $H = new _ExtractorMapBlock(['block' => $block]);
-        return $H->_offset($fh);
+        $expected_start = substr($this->map, $block*10, 10);
+        $got_start = substr($H->map, 0, 10);
+        if (! strncmp($expected_start, $got_start, 10))
+            return $H->_offset($fh);
+        if ($retry) {
+            fprintf(STDERR, "MAP and MAP2 files still out of sync (after retry)- Refusing to serve files\n");
+            return 1; // File Not Found
+        }
+        // MAP2 and MAP out of SYNC
+        fprintf(STDERR,
+            "Cached MAP2 and On-disk MAP files out of sync\n".
+            "  Have you uploaded new MAP file?\n".
+            "  expected-block-start: ".bin2hex($expected_start)." got: ".bin2hex($got_start)."\n".
+            "  RE-READING MAP2 file\n"
+        );
+        $this->init();
+        return $this->_offset($fh, 1);
     }
 
     /**
