@@ -991,6 +991,36 @@ class Cli extends CliTool {
         shell_exec("$cmd > index.html");
     }
 
+
+    /**
+     * sync BigPack files to remote server/directory
+     *
+     * rsync/ssh wrapper
+     * remote bigpack-web-server will reload-indexes - no requests will be lost
+     *
+     * Usage:
+     *   bigpack sync server:path
+     *
+     * PS:
+     *   // technically bigpack-web-server does not need an INDEX file
+     *   // it needs only data, map and map2 files
+     *   // however we need it for "extract --all" operation
+     *   // feel free to delete it if you want to keep filenames stored in bigpack secret
+     */
+    static function sync(array $opts) {
+        $remote = @$opts[2];
+        if (! $remote || ! strpos($remote, ':'))
+            Util::error("Specify Remote Server:Path\nsee bigpack help sync\n");
+        $files = [Core::DATA, Core::INDEX, Core::MAP2, Core::MAP];
+        foreach ($files as $f) {
+            if (! file_exists($f))
+                Util::error("No file $f in current directory"); // & die
+        }
+        foreach ($files as $f) {
+            echo shell_exec("rsync -av $f $remote");
+        }
+    }
+
     /**
      * run bigpack server (using php buildin web server)
      *
