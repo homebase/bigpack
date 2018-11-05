@@ -160,8 +160,8 @@ class Core {
 
 class Packer {
 
-    static $WRITE_BUFFER_FILES   = 1000;        // NN files to keep in write buffer
-    static $WRITE_BUFFER_SIZE    = 10 << 20;    // size in MB
+    static $WRITE_BUFFER_FILES   = 10000;        // NN files to keep in write buffer
+    static $WRITE_BUFFER_SIZE    = 100 << 20;     // size in MB
     static $skip_gzip_default = "gz bz2 tgz xz jpg jpeg gif png webp zip 7z rar";
 
     // never add this files to BigPack archive
