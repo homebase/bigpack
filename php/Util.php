@@ -182,7 +182,7 @@ class Util {
      * @param  $dirEntryCallback($base_dir, $dirName) - return true to skip directory
      * @param  $rdir is internal paramether - always pass ""
      */
-    function fileScanner(string $base_dir,
+    static function fileScanner(string $base_dir,
                          /* private */ string $rdir = "",
                          ?callable $fileCallback = null,
                          ?callable $dirEntryCallback = null) { # Generator >> Path/File
