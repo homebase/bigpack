@@ -81,11 +81,11 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 * rebuild indexes
 * optionally specify how many revisions you want to retain
 
-## bigpack merge
+## bigpack merge (todo)
  * merge two or more bigpacks
- * rebuild indexes
+* rebuild indexes
 
-## bigpack-sync $remote
+## bigpack sync $remote
  * SAFE rsync Bigpack, remote web server will be automatically reloaded
 
 ## bigpack server

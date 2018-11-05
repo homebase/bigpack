@@ -128,12 +128,14 @@ class Core {
         }
         fclose($fh);
         if ($d['flag'] & Core::FLAG_DELETED)
-            return ["", ""]; // File Deleted
+            return ["", "", $d['flag']]; // File Deleted
         if ($raw)
             return [$data, $d['dh'], $d['flag'] & Core::FLAG_GZIP];
-        if ($d['flag'] & Core::FLAG_GZIP)
+        if ($d['flag'] & Core::FLAG_GZIP) {
             $data = gzinflate($data);
-        return [$data, $d['dh']];
+            $d['flag'] ^= Core::FLAG_GZIP; // gzip no more
+        }
+        return [$data, $d['dh'], $d['flag']];
     }
 
     /**
