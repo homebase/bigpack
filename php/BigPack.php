@@ -191,7 +191,7 @@ class Packer {
         $skip_gzip = $opts['skip-gzip'] ?? self::$skip_gzip_default; // space delimited list of extensions
         $this->skip_gzip = array_flip(explode(" ", ' '.$skip_gzip)); // ext => 1
         if ($sf = @$this->opts['skip-files']) { # COMMA DELIMITED FILE-NAME LIST - files will be excluded in ALL directories
-            foreach ($explode(",", $sf) as $file)
+            foreach (explode(",", $sf) as $file)
                 self::$EXCLUDE_FILES[$file] = 1;
         }
         if (@$args['vv'])  // -vv = very-verbose
