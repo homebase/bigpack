@@ -284,6 +284,38 @@ class Packer {
         return $this->pack($this->fileScanner(), $offset);
     }
 
+
+    /**
+     * Create/Add Archive from pre-generated filelist
+     * generate filelist with: bigpack generateFileList
+     */
+    function addFromFileList() : int { # NN files-added
+        static $filelist = "filelist.bigpack.gz";
+        if (! file_exists($filelist))
+            Util::error("no $filelist file found, generate one with bigpack generateFileList");
+
+        die("TODO");
+        if (! file_exists(Core::INDEX))
+            $this->init("--bare");
+
+        foreach (Core::indexReader() as $d) {
+            $filename_hash = hex2bin($d[1]);
+            $this->KNOWN_FILE[$filename_hash] = 1;
+        }
+        $zh = gzopen($filelist,'r') or Util::error("can't open: $php_errormsg");
+        $cnt = 0;
+        while ($line = gzgets($zh, 1024)) {
+            [$filename, $mode, $last_modified] = explode("\t", $line);
+            // $fh = Core::hash($fp);
+            echo json_encode([$filename, $mode, $last_modified]);
+            $cnt++;
+        }
+        gzclose($zh) or Util::error("can't close: $php_errormsg");
+        return $cnt;
+    }
+
+
+
     /**
      * read files from scanner, pack them into archive
      * --gzip - use gzip on data
@@ -1049,6 +1081,27 @@ class Cli extends CliTool {
         shell_exec("$cmd > index.html");
     }
 
+    /**
+     * Generate File List from current directory for addFromFileList command
+     *
+     * Filelist is gzipped result of `find . -printf "%p\t%m\t%T@\n"` command
+     * ".git" directory ignored
+     * ".*" files/directories ignored (hidden files)
+     * "*.gz" files ignored
+     */
+    function generateFileList() {
+        $cmd = "find . -path \"./.*\" -prune -o -path \"*.gz\" -prune -o -path \"*/.*\" -prune -o -type f -printf \"%p\t%m\t%T@\n\"";
+        echo shell_exec($cmd.' | sed \'s/^\.\///\' | sed \'s/\.[0-9]*$//\' | gzip > filelist.bigpack.gz');
+    }
+
+    /**
+     * create archive / add files from specially formatted filelist
+     *
+     * run `bigpack generateFileList` to generate filelist
+     */
+    function addFromFileList(array $opts) {
+        (new Packer($opts))->addFromFileList($opts);
+    }
 
     /**
      * sync BigPack files to remote server/directory
@@ -1095,6 +1148,9 @@ class Cli extends CliTool {
         echo "Starting bigpack php-web server. http://$host:$port\n";
         shell_exec("php -S $host:$port $server");
     }
+
+
+
 
 
 }
