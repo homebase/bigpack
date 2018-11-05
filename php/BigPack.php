@@ -447,6 +447,41 @@ class Packer {
         echo json_encode(['stats' => $this->stat]), "\n";
     }
 
+    /**
+     * mark file-content as deleted
+     */
+    function deleteContent() {
+        $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
+        $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
+        if (! $files)
+            Util::error("no files given, specify list of files");
+        foreach ($files as $f)
+            $this->_deleteContent($f);
+    }
+
+    function _deleteContent(string $file) {
+        #die("TODO");
+        $fh = Core::hash($file);
+        $offset = (new ExtractorMap2([]))->_offset($fh);
+        if ($offset === 0)
+            Util::error("No such file $file in archive, aborting"); // && die
+        if ($offset === 1)
+            Util::error("File $file extract error"); // && die
+        // uint32 size, byte(size_high_byte) byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
+        // FLAGS is last BYTE of DATA
+        $fh_data  = Util::openLock(Core::DATA, "r+b");
+        fseek($fh_data, $offset + 15);
+        $flags = ord(fread($fh_data, 1));
+        var_dump([$file, $offset]);
+        //$flags = unpack("Cd", $flags_s)['d'];
+        echo "Current Flag: ".$flags,"\n";
+        $flags |= Core::FLAG_DELETED;
+        echo "New Flag: ".$flags,"\n";
+        fseek($fh_data, $offset + 15);
+        fwrite($fh_data, chr($flags), 1);
+        fclose($fh_data);
+    }
+
 } // class Packer
 
 /**
@@ -524,6 +559,8 @@ class Extractor {
         [$data, $dh] = Core::_readOffset((int) $offset);
         @$this->opts['vv'] && print("file: $file dh: ".bin2hex($data_hash)."\n");  // debug
         // var_dump(["file" => $file, "data" => $data]);
+        if (! $data && ! $dh)
+            Util::error("File $file deleted, aborting");
         if ($dh !== $data_hash) {
             $error = "File: $file data hash mismatch expected: ".bin2hex($data_hash)." got: ".bin2hex($dh)." read-data-size: ".strlen($data)." use --allow-mismatch to bypass broken files";
             echo "take 2 on hash:".bin2hex(Core::hash($data))."\n";
@@ -563,7 +600,7 @@ class Extractor {
  *   bigpack list --name-only | xargs -n 1 bigpack extractMap
  *   bigpack list --name-only | xargs -n 100 -P 10 bigpack extractMap
  *
- * Debug: view MAP2 file: xxd -c 16  BigPack.map
+ * Debug: view MAP file: xxd -c 16  BigPack.map
  */
 class ExtractorMap {
 
@@ -608,6 +645,8 @@ class ExtractorMap {
         if ($offset === 1)
             Util::error("File $file extract error"); // && die
         [$data, $dh] = Core::_readOffset((int) $offset);
+        if (! $data && ! $dh)
+            Util::error("File $file deleted, aborting");
         if (strpos($file, '/'))
             Core::_makeDirs($file);
         $r = file_put_contents($file, $data);
@@ -653,7 +692,7 @@ class ExtractorMap {
  * "MAP2" file bases extractor
  * Can NOT preserve file_mtime and mode
  * DEBUG: view MAP2 file: xxd -c 10  BigPack.map2
- * TEST: bigpack list --name-only | xargs -n 300 bigpack extractMap
+ * TEST: bigpack list --name-only | xargs -n 300 bigpack extractMap2
  */
 class ExtractorMap2 extends ExtractorMap {
 
@@ -984,6 +1023,9 @@ class Cli extends CliTool {
 
     /**
      * generate index.html with links to all files stored in bigpack
+     *
+     * Create good index with pagination (directories, statistics)
+     *
      */
     static function generateIndex(array $opts) {
         $cmd = __DIR__.'/bigpack list --name-only | perl -ne \'chomp; print "$. <a href=\\"$_\\">$_</a><br>\n"\'';
