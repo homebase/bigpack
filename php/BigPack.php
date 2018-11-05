@@ -26,7 +26,7 @@
  *     rm      : remove archived files
  *
  * testing:
- *   ./bigpack init --rewrite --vv -v
+ *   ./bigpack init --recreate --vv -v
  *   ./bigpack add  --vv -v
  *
  *
@@ -190,6 +190,10 @@ class Packer {
         $this->opts["gzip"] = $this->opts["gzip"] ?? 1; // Default GZIP is ON
         $skip_gzip = $opts['skip-gzip'] ?? self::$skip_gzip_default; // space delimited list of extensions
         $this->skip_gzip = array_flip(explode(" ", ' '.$skip_gzip)); // ext => 1
+        if ($sf = @$this->opts['skip-files']) { # COMMA DELIMITED FILE-NAME LIST - files will be excluded in ALL directories
+            foreach ($explode(",", $sf) as $file)
+                self::$EXCLUDE_FILES[$file] = 1;
+        }
         if (@$args['vv'])  // -vv = very-verbose
             echo json_encode(['options' => $args, 'skip-gzip' => $this->skip_gzip]), "\n";
     }
@@ -263,14 +267,14 @@ class Packer {
      */
     function init() : int { # NN files-added
         if (file_exists(Core::INDEX)) {
-            if (@$this->opts['rewrite']) {
+            if (@$this->opts['recreate']) {
                 unlink(Core::INDEX);
                 unlink(Core::DATA);
                 @unlink(Core::MAP);
                 @unlink(Core::MAP2);
             } else {
                 Util::error("BigPack files already exists - refusing to run\n".
-                    "use --rewrite to *REMOVE OLD* archive (all archived files will be LOST), and build new one\n".
+                    "use --recreate to *REMOVE OLD* archive (all archived files will be LOST), and build new one\n".
                     "Use 'bigpack add' to add new files");
             }
         }
@@ -453,6 +457,10 @@ class Packer {
 
     /**
      * mark file-content as deleted
+     *
+     * Important: content is still kept in data file, however you can not extract it unless you undelete it
+     *
+     * --undelete - remove is-deleted flag
      */
     function deleteContent() {
         $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
@@ -476,11 +484,13 @@ class Packer {
         $fh_data  = Util::openLock(Core::DATA, "r+b");
         fseek($fh_data, $offset + 15);
         $flags = ord(fread($fh_data, 1));
-        var_dump([$file, $offset]);
+        // var_dump([$file, $offset]);
         //$flags = unpack("Cd", $flags_s)['d'];
-        echo "Current Flag: ".$flags,"\n";
+        echo "Current Delete Flag: ", (bool) ($flags & Core::FLAG_DELETED),"\n";
         $flags |= Core::FLAG_DELETED;
-        echo "New Flag: ".$flags,"\n";
+        if (@$this->opts['undelete'])
+            $flags ^= Core::FLAG_DELETED;
+        echo "New Delete Flag: ", (bool) ($flags & Core::FLAG_DELETED),"\n";
         fseek($fh_data, $offset + 15);
         fwrite($fh_data, chr($flags), 1);
         fclose($fh_data);
@@ -909,7 +919,8 @@ class Cli extends CliTool {
      *   --dir      - directory to take files from (default current directory)
      *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
      *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
-     *   --rewrite  - rewrite existing BigPack files. CAUTION: you'll lose previosly archived files!
+     *   --recreate  - recreate existing BigPack files. CAUTION: you'll lose previosly archived files!
+     *   --skip-files - comma delimited list of files to ignore (in every directory)
      */
     static function init(array $opts) {
         if ((new Packer($opts))->init()) // if files-added
@@ -923,6 +934,7 @@ class Cli extends CliTool {
      *   --dir      - directory to take files from (default current directory)
      *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
      *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
+     *   --skip-files - comma delimited list of files to ignore (in every directory)
      */
     static function add(array $opts) {
         if ((new Packer($opts))->add())  // if files-added
