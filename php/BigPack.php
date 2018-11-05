@@ -306,7 +306,8 @@ class Packer {
         fclose($this->fh_data);
         fclose($this->fh_index);
 
-        echo json_encode(['stats' => $this->stat]), "\n";
+        echo "\nDONE\n";
+        # echo json_encode(['stats' => $this->stat]), "\n";
         return $this->stat['files'];
     }
 
@@ -414,6 +415,7 @@ class Packer {
                     unlink($f);
                 }
             }
+            echo json_encode(['stats' => $this->stat]), "\n";
         }
         $index_buffer = [];
         $data_buffer = [];
