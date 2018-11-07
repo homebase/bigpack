@@ -202,6 +202,18 @@ class Util {
         }
     }
 
+    /**
+     * Generator - read lines from gzipped files
+     */
+    static function gzLineReader($filename) { #
+        $zh = gzopen($filename,'r') or Util::error("can't open: $php_errormsg");
+        $cnt = 0;
+        while ($line = gzgets($zh, 1024)) {
+            yield rtrim($line);
+        }
+        gzclose($zh) or Util::error("can't close: $php_errormsg");
+    }
+
 
 } // class Util
 

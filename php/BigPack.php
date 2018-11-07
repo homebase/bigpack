@@ -3,11 +3,6 @@
 /**
  *
  * TODO:
- *   4. Fast file adder for huge volumes:
- *        a. find php/ -printf "%p\t%m\t%T@\n"  > filelist.bigpack  (file, mode, last-change-time)
- *        b. V1. (gnu-parallel)  cat filelist.bigpack | parallel "md5sum file-group" | formatter > filelist-md5.bigpack
- *           V2: (parallel xargs) cat filelist.bigpack | xargs -P 16 -n 200 (md5sum+formatter) > filelist-md5.bigpack
- *        c. bigpack init/add --prepared-file=filelist-md5.bigpack
  *
  *   5. Service - adding files in runtime - buffer + rebuild
  *      new-files buffer, then merge-sort + index rebuild
@@ -48,10 +43,10 @@
 // HB = homebase framework namespace
 namespace hb\bigpack;
 
+declare(ticks = 1);
+
 use hb\util\CliTool;
 use hb\util\Util;
-
-include __DIR__."/Util.php";     // \hb\util - generic classes
 
 /**
  * Common methods
@@ -74,12 +69,18 @@ class Core {
 
     CONST VERSION = '1.0.1'; // semver
 
+    // Signals
+    static $STOP_SIGNAL = 0; // kill -SIGINT / -SIGTERM $PID
+    static $RELOAD_SIGNAL = 0; // kill -HUP $PID
+
+
     /**
      * Generator
      *   return items in form:
      *      [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
      */
     static function indexReader() {
+        file_exists(Core::INDEX) or Util::error("Can't find index file ".Core::INDEX);
         $fh_index = fopen(Core::INDEX, "r");
         while (($L = stream_get_line($fh_index, 1024 * 1024, "\n")) !== false) {
             if ($L{0} === '#')
@@ -154,6 +155,21 @@ class Core {
         # @$this->opts['vv'] && print("creating directory: $path\n");  // debug
         mkdir($path, 0775, true);
         #die("$file => $path");
+    }
+
+    static function _SIGINT() {
+        echo "INT\n";
+        self::$STOP_SIGNAL = "INT";
+    }
+
+    static function _SIGTERM() {
+        echo "TERM\n";
+        self::$STOP_SIGNAL = "TERM";
+    }
+
+    static function _SIGHUP() {
+        echo "HUP\n";
+        self::$RELOAD_SIGNAL = "HUP";
     }
 
 }
@@ -264,6 +280,9 @@ class Packer {
     }
     /**
      * Create new Archive, add all files
+     * Options:
+     *   --recreate
+     *   --bare
      */
     function init() : int { # NN files-added
         if (file_exists(Core::INDEX)) {
@@ -281,6 +300,8 @@ class Packer {
         $archive_info = "BigPack".Core::VERSION." ".gmdate("Ymd His")." ".\get_current_user()."@".\gethostname();
         $this->_write("", join("\t", ["#FileName", "FilenameHash", "DataHash", "FilePerms", "FileMTime", "AddedTime", "DataOffset"])."\n", $archive_info);
         $offset = strlen($archive_info);
+        if (@$this->opts['bare'])
+            return $this->pack([], $offset);
         return $this->pack($this->fileScanner(), $offset);
     }
 
@@ -288,32 +309,62 @@ class Packer {
     /**
      * Create/Add Archive from pre-generated filelist
      * generate filelist with: bigpack generateFileList
+     *
+     * To Stop do 'kill $process_pid'
      */
-    function addFromFileList() : int { # NN files-added
+    function addFromFileList() : int {
         static $filelist = "filelist.bigpack.gz";
         if (! file_exists($filelist))
             Util::error("no $filelist file found, generate one with bigpack generateFileList");
-
-        die("TODO");
-        if (! file_exists(Core::INDEX))
-            $this->init("--bare");
-
-        foreach (Core::indexReader() as $d) {
-            $filename_hash = hex2bin($d[1]);
-            $this->KNOWN_FILE[$filename_hash] = 1;
+        if (! file_exists(Core::INDEX)) {
+            echo "Creating Archive\n";
+            $this->opts['bare'] = 1;
+            $this->init();
         }
-        $zh = gzopen($filelist,'r') or Util::error("can't open: $php_errormsg");
+        // ignore existing files
+        foreach (Core::indexReader() as $d)
+            $this->KNOWN_FILE[$d[1]] = 1;
+        // ignore system files (just in case)
+        foreach ([Core::INDEX, Core::DATA, Core::MAP, Core::MAP2, Core::MAPH, Core::OPTIONS, $filelist] as $file)
+            $this->KNOWN_FILE[Core::hash($file)] = 1;
+        $offset = filesize(Core::DATA);
+        $this->fh_index = Util::openLock(Core::INDEX);
+        $this->fh_data  = Util::openLock(Core::DATA);
+        stream_set_write_buffer($this->fh_index, 1 << 16);
+        stream_set_write_buffer($this->fh_data, 1 << 20);
+        $this->stat['files'] = 0;
+        $this->stat['file-size'] = 0;
         $cnt = 0;
-        while ($line = gzgets($zh, 1024)) {
-            [$filename, $mode, $last_modified] = explode("\t", $line);
-            // $fh = Core::hash($fp);
-            echo json_encode([$filename, $mode, $last_modified]);
+        foreach (Util::gzLineReader($filelist) as $line) {
+            [$file, $mode, $file_mtime] = explode("\t", $line);
+            if ($file{0}.$file{1} === './') // cut useless "./" prefix
+                $file = substr($file, 2);
+            $filename_hash = Core::hash($file);
+            if (@$this->KNOWN_FILE[$filename_hash]) {
+                @$this->stat['known-files']++;
+                continue;
+            }
+            $data = file_get_contents($file);
+            $data_hash = Core::hash($data);
+            $flags = 0; // bit field
+            $mode = (int) ($mode & 511);
+            $file_mtime = (int) $file_mtime;
+            if (@$this->opts['gzip'])
+                [$data, $flags] = $this->_compress($file, $flags, $data);
+            # echo json_encode([$file, $mode, $file_mtime, $offset]), "\n";
+            $offset += $this->write($file, $filename_hash, $data_hash, $mode, $file_mtime, $offset, $flags, $data);
             $cnt++;
+            if (Core::$STOP_SIGNAL) {
+                echo "Stopping Packer in STOP Signal, doing final flush\n";
+                break;
+            }
         }
-        gzclose($zh) or Util::error("can't close: $php_errormsg");
+        $this->_flush(); // flush write buffer, remove archived files (if --rm)
+        fclose($this->fh_data);
+        fclose($this->fh_index);
+        echo "\nDONE. $cnt files added\n";
         return $cnt;
     }
-
 
 
     /**
@@ -321,6 +372,8 @@ class Packer {
      * --gzip - use gzip on data
      */
     function pack($scanner, $offset) : int { # NN files-added
+        $pid = getmypid();
+        echo "Starting Packer. Use \"kill $pid\" to safe-stop process\n";
         $this->fh_index = Util::openLock(Core::INDEX);
         $this->fh_data  = Util::openLock(Core::DATA);
         stream_set_write_buffer($this->fh_index, 1 << 16);
@@ -337,6 +390,10 @@ class Packer {
                 [$data, $flags] = $this->_compress($file, $flags, $data);
             # echo json_encode([$file, $mode, $file_mtime, $offset]), "\n";
             $offset += $this->write($file, $filename_hash, $data_hash, $mode, $file_mtime, $offset, $flags, $data);
+            if (Core::$STOP_SIGNAL) {
+                echo "Stopping Packer in STOP Signal, doing final flush\n";
+                break;
+            }
         }
         $this->_flush(); // flush write buffer, remove archived files (if --rm)
         fclose($this->fh_data);
@@ -631,7 +688,36 @@ class Extractor {
         chmod($file, $mode);
     }
 
-
+    // bigpack list
+    // bigpack list "path/file_shell_wildcard" <<  "*?[abc]" see http://php.net/manual/en/function.fnmatch.php
+    // Options:
+    //  --name-only
+    //  --raw
+    function list() {
+        if (@$this->opts['name-only']) {
+            foreach (Core::indexReader() as $d)
+                echo $d[0], "\n";
+            return;
+        }
+        if (@$this->opts['raw']) {
+            echo shell_exec("cat BigPack.index | column -t");
+            echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
+            return;
+        }
+        $pattern = "".@$this->opts[2];
+        // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
+        foreach (Core::indexReader() as $d) {
+            if ($pattern && ! fnmatch($pattern, $d[0]))
+                continue;
+            $d[1] = bin2hex($d[1]);
+            $d[2] = bin2hex($d[2]);
+            $d[3] = base_convert($d[3], 10, 8);
+            $d[4] = date("Y-m-d H:i:s", $d[4]);
+            $d[5] = date("Y-m-d H:i:s", $d[5]);
+            $d[6] = number_format($d[6]);
+            echo join("\t", $d), "\n";
+        }
+    }
 
 
 } // class Packer
@@ -924,233 +1010,4 @@ class Indexer {
     }
 }
 
-/**
- * CLI Interface:
- *    function-name = Cli Tool Command Name
- *    class php-doc = global doc
- *    function php-doc = method doc, first line = method description for global doc
- */
 
-/**
- * * File Compressor with Deduplication.
- * * Blazing Fast Static Web Server.
- * * Petabyte Scale.
- * * Serve Millions Files from several Indexed Archive File(s)
- *
- * run: "bigpack help $command" to see doc for specific commands
- *
- * read doc: https://github.com/homebase/bigpack/blob/master/README.md
- */
-class Cli extends CliTool {
-
-    /**
-     * create new archive
-     * pack all files in directory and subdirectories
-     * Options:
-     *   --rm       - remove files after add
-     *   --dir      - directory to take files from (default current directory)
-     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
-     *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
-     *   --recreate  - recreate existing BigPack files. CAUTION: you'll lose previosly archived files!
-     *   --skip-files - comma delimited list of files to ignore (in every directory)
-     */
-    static function init(array $opts) {
-        if ((new Packer($opts))->init()) // if files-added
-            (new Indexer($opts))->index();
-    }
-
-    /**
-     * add new files to existing archive
-     * Options:
-     *   --rm       - remove files after add
-     *   --dir      - directory to take files from (default current directory)
-     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
-     *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
-     *   --skip-files - comma delimited list of files to ignore (in every directory)
-     */
-    static function add(array $opts) {
-        if ((new Packer($opts))->add())  // if files-added
-            (new Indexer($opts))->index();
-    }
-
-
-    /**
-     * list files in archive
-     * default timezone from php.ini is used to show dates
-     * hint: use "bigpack list | column -t" for better layout formatting
-     * Options:
-     *   --name-only - show only file names
-     *   --raw       - show raw data
-     */
-    static function list(array $opts) {
-        if (@$opts['name-only']) {
-            foreach (Core::indexReader() as $d)
-                echo $d[0], "\n";
-            return;
-        }
-        if (@$opts['raw']) {
-            echo shell_exec("cat BigPack.index | column -t");
-            echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
-            return;
-        }
-        // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
-        foreach (Core::indexReader() as $d) {
-            $d[1] = bin2hex($d[1]);
-            $d[2] = bin2hex($d[2]);
-            $d[3] = base_convert($d[3], 10, 8);
-            $d[4] = date("Y-m-d H:i:s", $d[4]);
-            $d[5] = date("Y-m-d H:i:s", $d[5]);
-            $d[6] = number_format($d[6]);
-            echo join("\t", $d), "\n";
-        }
-    }
-
-    /**
-     * extract all or specific files from archive
-     *
-     * Usage: bigpack extract file1 file2 file3 ...
-     *
-     * Options:
-     *  --all      - extract all files
-     *  --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
-     *                    run "bigpack list" to see all files aand data-hashes
-     *  --cat      - dump file to STDOUT
-     */
-    static function extract(array $opts) {
-        (new Extractor($opts))->extract();
-    }
-
-    /**
-     * DEBUG: extract files from archive.
-     * Lookups done via "MAP" file
-     */
-    static function extractMap(array $opts) {
-        (new ExtractorMap($opts))->extract();
-    }
-
-    /**
-     * DEBUG: extract files from archive.
-     * Lookups done via "MAP2, MAP" files
-     */
-    static function extractMap2(array $opts) {
-        (new ExtractorMap2($opts))->extract();
-    }
-
-    /**
-     * remove alredy archived files
-     * will not remove modified files (when archive version != file version)
-     *
-     */
-    static function removeArchived(array $opts) {
-        (new Packer($opts))->removeArchived();
-    }
-
-
-    /**
-     * Build Indexes: "map", "map2" files - called automatically after "init, add"
-     * - "map" (index of index)                  - list of [filehash => offset] (full list)
-     * - "map2" (index of map(index of index))   - list of [filehash => offset] (one record for 512 "map" entries)
-     */
-    static function index(array $opts) {
-        (new Indexer($opts))->index();
-    }
-
-    /**
-     * mark content as "deleted"
-     * all files mapped to this content will become unavailable
-     * web service will return "410 GONE" for this files
-     *
-     * bigpack deleteContent file1 file2 ...
-     *
-     * Option:
-     *  --undelete  : restore content
-     */
-    static function deleteContent(array $opts) {
-        (new Packer($opts))->deleteContent();
-    }
-
-    /**
-     * generate index.html with links to all files stored in bigpack
-     *
-     * Create good index with pagination (directories, statistics)
-     *
-     */
-    static function generateIndex(array $opts) {
-        $cmd = __DIR__.'/bigpack list --name-only | perl -ne \'chomp; print "$. <a href=\\"$_\\">$_</a><br>\n"\'';
-        // echo $cmd;
-        shell_exec("$cmd > index.html");
-    }
-
-    /**
-     * Generate File List from current directory for addFromFileList command
-     *
-     * Filelist is gzipped result of `find . -printf "%p\t%m\t%T@\n"` command
-     * ".git" directory ignored
-     * ".*" files/directories ignored (hidden files)
-     * "*.gz" files ignored
-     */
-    function generateFileList() {
-        $cmd = "find . -path \"./.*\" -prune -o -path \"*.gz\" -prune -o -path \"*/.*\" -prune -o -type f -printf \"%p\t%m\t%T@\n\"";
-        echo shell_exec($cmd.' | sed \'s/^\.\///\' | sed \'s/\.[0-9]*$//\' | gzip > filelist.bigpack.gz');
-    }
-
-    /**
-     * create archive / add files from specially formatted filelist
-     *
-     * run `bigpack generateFileList` to generate filelist
-     */
-    function addFromFileList(array $opts) {
-        (new Packer($opts))->addFromFileList($opts);
-    }
-
-    /**
-     * sync BigPack files to remote server/directory
-     *
-     * rsync/ssh wrapper
-     * remote bigpack-web-server will reload-indexes - no requests will be lost
-     *
-     * Usage:
-     *   bigpack sync server:path
-     *
-     * PS:
-     *   // technically bigpack-web-server does not need an INDEX file
-     *   // it needs only data, map and map2 files
-     *   // however we need it for "extract --all" operation
-     *   // feel free to delete it if you want to keep filenames stored in bigpack secret
-     */
-    static function sync(array $opts) {
-        $remote = @$opts[2];
-        if (! $remote || ! strpos($remote, ':'))
-            Util::error("Specify Remote Server:Path\nsee bigpack help sync\n");
-        $files = [Core::DATA, Core::INDEX, Core::MAP2, Core::MAP];
-        foreach ($files as $f) {
-            if (! file_exists($f))
-                Util::error("No file $f in current directory"); // & die
-        }
-        foreach ($files as $f) {
-            echo shell_exec("rsync -av $f $remote");
-        }
-    }
-
-    /**
-     * run bigpack server (using php buildin web server)
-     *
-     * --port = port to run - default is 8080
-     * --host = host ro run - default is localhost
-     *
-     */
-    static function server(array $opts) {
-        if (!function_exists("apcu_fetch"))
-            Util::error("install PHP-APCU - http://php.net/manual/en/intro.apcu.php");
-        $port = $opts['port'] ?? 8080;
-        $host = $opts['host'] ?? "localhost";
-        $server = __DIR__."/bigpack-server";
-        echo "Starting bigpack php-web server. http://$host:$port\n";
-        shell_exec("php -S $host:$port $server");
-    }
-
-
-
-
-
-}

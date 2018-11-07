@@ -1,5 +1,243 @@
 #!/usr/bin/php
 <?php
-ini_set("memory_limit", -1);
-include __DIR__."/BigPack.php";
-hb\bigpack\Cli::_run($argv);
+
+/**
+ *
+ * BigPack CLI Tool
+ *
+ */
+
+namespace hb\bigpack {
+
+    include __DIR__."/BigPack.php";  // all bigpack related code
+    include __DIR__."/Util.php";     // \hb\util - generic classes - not bigpack related
+
+    use hb\util\Util;
+
+/**
+ * CLI Definition Interface:
+ *    function-name = Cli Tool Command Name
+ *    class php-doc = Cli Tool Global doc
+ *    function php-doc = method doc, first line = method description for global doc
+ */
+
+/**
+ * * File Compressor with Deduplication.
+ * * Blazing Fast Static Web Server.
+ * * Petabyte Scale.
+ * * Serve Millions Files from several Indexed Archive File(s)
+ *
+ * run: "bigpack help $command" to see doc for specific commands
+ *
+ * read doc: https://github.com/homebase/bigpack/blob/master/README.md
+ */
+class Cli extends \hb\util\CliTool {
+
+
+    /**
+     * create new archive
+     * pack all files in directory and subdirectories
+     * Options:
+     *   --rm       - remove files after add
+     *   --dir      - directory to take files from (default current directory)
+     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
+     *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
+     *   --recreate  - recreate existing BigPack files. CAUTION: you'll lose previosly archived files!
+     *   --skip-files - comma delimited list of files to ignore (in every directory)
+     *   --bare       - create empty archive - just write a header
+     */
+    static function init(array $opts) {
+        if ((new Packer($opts))->init()) // if files-added
+            (new Indexer($opts))->index();
+    }
+
+    /**
+     * add new files to existing archive
+     * Options:
+     *   --rm       - remove files after add
+     *   --dir      - directory to take files from (default current directory)
+     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
+     *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
+     *   --skip-files - comma delimited list of files to ignore (in every directory)
+     */
+    static function add(array $opts) {
+        if ((new Packer($opts))->add())  // if files-added
+            (new Indexer($opts))->index();
+    }
+
+
+    /**
+     * list files in archive
+     *
+     * default timezone from php.ini is used to show dates
+     * hint: use "bigpack list | column -t" for better layout
+     *
+     * bigpack list
+     * bigpack list "path/file_shell_wildcard" <<  "*?[abc]" see http://php.net/manual/en/function.fnmatch.php
+     *
+     * Options:
+     *   --name-only - show only file names
+     *   --raw       - show raw data
+     */
+    static function list(array $opts) {
+        (new Extractor($opts))->list();
+    }
+
+    /**
+     * extract all or specific files from archive
+     *
+     * Usage: bigpack extract file1 file2 file3 ...
+     *
+     * Options:
+     *  --all      - extract all files
+     *  --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
+     *                    run "bigpack list" to see all files aand data-hashes
+     *  --cat      - dump file to STDOUT
+     */
+    static function extract(array $opts) {
+        (new Extractor($opts))->extract();
+    }
+
+    /**
+     * DEBUG: extract files from archive.
+     * Lookups done via "MAP" file
+     */
+    static function extractMap(array $opts) {
+        (new ExtractorMap($opts))->extract();
+    }
+
+    /**
+     * DEBUG: extract files from archive.
+     * Lookups done via "MAP2, MAP" files
+     */
+    static function extractMap2(array $opts) {
+        (new ExtractorMap2($opts))->extract();
+    }
+
+    /**
+     * remove alredy archived files
+     * will not remove modified files (when archive version != file version)
+     *
+     */
+    static function removeArchived(array $opts) {
+        (new Packer($opts))->removeArchived();
+    }
+
+
+    /**
+     * Build Indexes: "map", "map2" files - called automatically after "init, add"
+     * - "map" (index of index)                  - list of [filehash => offset] (full list)
+     * - "map2" (index of map(index of index))   - list of [filehash => offset] (one record for 512 "map" entries)
+     */
+    static function index(array $opts) {
+        (new Indexer($opts))->index();
+    }
+
+    /**
+     * mark content as "deleted"
+     * all files mapped to this content will become unavailable
+     * web service will return "410 GONE" for this files
+     *
+     * bigpack deleteContent file1 file2 ...
+     *
+     * Option:
+     *  --undelete  : restore content
+     */
+    static function deleteContent(array $opts) {
+        (new Packer($opts))->deleteContent();
+    }
+
+    /**
+     * generate index.html with links to all files stored in bigpack
+     *
+     * Create good index with pagination (directories, statistics)
+     *
+     */
+    static function generateIndex(array $opts) {
+        $cmd = __DIR__.'/bigpack list --name-only | perl -ne \'chomp; print "$. <a href=\\"$_\\">$_</a><br>\n"\'';
+        // echo $cmd;
+        shell_exec("$cmd > index.html");
+    }
+
+    /**
+     * Generate File List from current directory for addFromFileList command
+     *
+     * Filelist is gzipped result of `find . -printf "%p\t%m\t%T@\n"` command
+     * ".git" directory ignored
+     * ".*" files/directories ignored (hidden files)
+     * "*.gz" files ignored
+     */
+    function generateFileList() {
+        $cmd = "find . -path \"./.*\" -prune -o -path \"*.gz\" -prune -o -path \"*/.*\" -prune -o -type f -printf \"%p\t%m\t%T@\n\"";
+        echo shell_exec($cmd.' | sed \'s/^\.\///\' | sed \'s/\.[0-9]*$//\' | gzip > filelist.bigpack.gz');
+    }
+
+    /**
+     * create archive / add files from specially formatted filelist
+     *
+     * run `bigpack generateFileList` to generate filelist
+     */
+    function addFromFileList(array $opts) {
+        if ((new Packer($opts))->addFromFileList($opts)) // if files-added
+            (new Indexer($opts))->index();
+    }
+
+    /**
+     * sync BigPack files to remote server/directory
+     *
+     * rsync/ssh wrapper
+     * remote bigpack-web-server will reload-indexes - no requests will be lost
+     *
+     * Usage:
+     *   bigpack sync server:path
+     *
+     * PS:
+     *   // technically bigpack-web-server does not need an INDEX file
+     *   // it needs only data, map and map2 files
+     *   // however we need it for "extract --all" operation
+     *   // feel free to delete it if you want to keep filenames stored in bigpack secret
+     */
+    static function sync(array $opts) {
+        $remote = @$opts[2];
+        if (! $remote || ! strpos($remote, ':'))
+            Util::error("Specify Remote Server:Path\nsee bigpack help sync\n");
+        $files = [Core::DATA, Core::INDEX, Core::MAP2, Core::MAP];
+        foreach ($files as $f) {
+            if (! file_exists($f))
+                Util::error("No file $f in current directory"); // & die
+        }
+        foreach ($files as $f) {
+            echo shell_exec("rsync -av $f $remote");
+        }
+    }
+
+    /**
+     * run bigpack server (using php buildin web server)
+     *
+     * --port = port to run - default is 8080
+     * --host = host ro run - default is localhost
+     *
+     */
+    static function server(array $opts) {
+        if (!function_exists("apcu_fetch"))
+            Util::error("install PHP-APCU - http://php.net/manual/en/intro.apcu.php");
+        $port = $opts['port'] ?? 8080;
+        $host = $opts['host'] ?? "localhost";
+        $server = __DIR__."/bigpack-server";
+        echo "Starting bigpack php-web server. http://$host:$port\n";
+        shell_exec("php -S $host:$port $server");
+    }
+
+} // Class CLI
+
+} // namespace
+
+namespace {
+    declare(ticks = 1);
+    ini_set("memory_limit", -1);
+    pcntl_signal(SIGTERM, ['\hb\bigpack\Core', '_SIGTERM']);
+    pcntl_signal(SIGINT,  ['\hb\bigpack\Core', '_SIGINT']);
+    pcntl_signal(SIGHUP,  ['\hb\bigpack\Core', '_SIGHUP']);
+
+    hb\bigpack\Cli::_run($argv);
+}
