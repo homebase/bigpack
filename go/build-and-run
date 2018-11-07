@@ -1,0 +1,26 @@
+#!/bin/sh
+
+export GOPATH=$(pwd)
+FN=bigpack-server.go
+FO=bigpack-server
+
+gofmt -w $FN
+[ -f $FO ] && mv -f $FO $FO.old
+go build $FN
+ERROR=$?
+if [ $ERROR -ne 0 ]; then
+    echo "Error $ERROR"
+    # restore old working EXE
+    [ -f $FO.old ] && mv -f $FO.old $FO
+    exit $ERROR 
+fi
+chmod 555 $FO
+rm -f $FO.old
+
+sudo mkdir -p /run/bigpack
+sudo chown $USER /run/bigpack
+cd sample
+../$FO
+
+
+
