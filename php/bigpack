@@ -167,7 +167,7 @@ class Cli extends \hb\util\CliTool {
      * ".*" files/directories ignored (hidden files)
      * "*.gz" files ignored
      */
-    function generateFileList() {
+    static function generateFileList() {
         $cmd = "find . -path \"./.*\" -prune -o -path \"*.gz\" -prune -o -path \"*/.*\" -prune -o -type f -printf \"%p\t%m\t%T@\n\"";
         echo shell_exec($cmd.' | sed \'s/^\.\///\' | sed \'s/\.[0-9]*$//\' | gzip > filelist.bigpack.gz');
     }
@@ -177,7 +177,7 @@ class Cli extends \hb\util\CliTool {
      *
      * run `bigpack generateFileList` to generate filelist
      */
-    function addFromFileList(array $opts) {
+    static function addFromFileList(array $opts) {
         if ((new Packer($opts))->addFromFileList($opts)) // if files-added
             (new Indexer($opts))->index();
     }
