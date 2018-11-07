@@ -868,10 +868,9 @@ class ExtractorMap2 extends ExtractorMap {
      * return NN-of-(8kb)block-in-MAP file
      */
     function _mapIndex(string $fh) : int { # NN-of-block-in-MAP file
-        // MAP only version
         $from = 0;
         $to   = $this->map_cnt;
-        // $MAP is sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
+        // $MAP is sorted list of "filehash" (10 byte)
         while (1) {
             $pos = ($from + $to) >> 1;
             # echo "$from <$pos> $to\n";
