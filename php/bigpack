@@ -166,6 +166,9 @@ class Cli extends \hb\util\CliTool {
      * ".git" directory ignored
      * ".*" files/directories ignored (hidden files)
      * "*.gz" files ignored
+     *
+     * On terabyte filesystems generation process alone can take up to an hour (even on SSD)
+     *
      */
     static function generateFileList() {
         $cmd = "find . -path \"./.*\" -prune -o -path \"*.gz\" -prune -o -path \"*/.*\" -prune -o -type f -printf \"%p\t%m\t%T@\n\"";
