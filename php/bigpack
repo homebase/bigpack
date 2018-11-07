@@ -167,7 +167,7 @@ class Cli extends \hb\util\CliTool {
      * ".*" files/directories ignored (hidden files)
      * "*.gz" files ignored
      *
-     * On terabyte filesystems generation process alone can take up to an hour (even on SSD)
+     * On terabyte+ filesystems generation process alone can take hours (even on SSD)
      *
      */
     static function generateFileList() {
