@@ -115,9 +115,8 @@ class Cli extends \hb\util\CliTool {
     }
 
     /**
-     * remove alredy archived files
-     * will not remove modified files (when archive version != file version)
-     *
+     * remove already archived files
+     * will not remove modified files (file-last-modified changed)
      */
     static function removeArchived(array $opts) {
         (new Packer($opts))->removeArchived();
@@ -217,13 +216,22 @@ class Cli extends \hb\util\CliTool {
     /**
      * run bigpack server (using php buildin web server)
      *
-     * --port = port to run - default is 8080
-     * --host = host ro run - default is localhost
+     * CLI OPTIONS:
+     *   --port = port to run - default is 8080
+     *   --host = host ro run - default is localhost
+     *
+     * Optional Config File "BigPack.options": (key-value format)
+     *   host=hostname                 << DEFAULT localhost
+     *   port=port                     << DEFAULT 8080
+     *   mime-types=/etc/mime.types    << DEFAULT (use same format)
+     *   expires-minutes=50            << DEFAULT 0  - Expires tag
      *
      */
     static function server(array $opts) {
         if (!function_exists("apcu_fetch"))
             Util::error("install PHP-APCU - http://php.net/manual/en/intro.apcu.php");
+        if (file_exists(Core::OPTIONS))
+            $opts += parse_ini_file(Core::OPTIONS);
         $port = $opts['port'] ?? 8080;
         $host = $opts['host'] ?? "localhost";
         $server = __DIR__."/bigpack-server";
