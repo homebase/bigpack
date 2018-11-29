@@ -79,13 +79,15 @@ class Core {
      *   return items in form:
      *      [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
      */
-    static function indexReader() {
+    static function indexReader(string $wildcard = "") {
         file_exists(Core::INDEX) or Util::error("Can't find index file ".Core::INDEX);
         $fh_index = fopen(Core::INDEX, "r");
         while (($L = stream_get_line($fh_index, 1024 * 1024, "\n")) !== false) {
             if ($L{0} === '#')
                 continue;
             $d = explode("\t", $L);
+            if ($wildcard && ! fnmatch($wildcard, $d[0]))
+                continue;
             $d[1] = hex2bin($d[1]);
             $d[2] = hex2bin($d[2]);
             $d[3] = (int) base_convert($d[3], 8, 10);
@@ -601,9 +603,10 @@ class Extractor {
 
     // extract one or more files
     // --cat = dump file to stdout
+    // --pattern="*" @see php fnmatch
     function extract() {
         // processing CLI options
-        if (@$this->opts['all'])
+        if (@$this->opts['all'] || @$this->opts['pattern'])
             return $this->extractAll();
         if (@$this->opts['data-hash'])
             return $this->extractHash($this->opts[2], $this->opts['data-hash']);  // extract filename --data-hash=....
@@ -616,7 +619,7 @@ class Extractor {
         $fh2d = []; // filehash => $index-line
         foreach ($files as $file)
             $fh2file[Core::hash($file)] = $file;
-        foreach (Core::indexReader() as $d) {
+        foreach (Core::indexReader("".@$this->opts['pattern']) as $d) {
             if (@$fh2file[$d[1]]) {
                 unset($fh2file[$d[1]]); // extracted
                 //$this->extract($d);   // we need last file revision - can't extract first occurence
@@ -629,8 +632,9 @@ class Extractor {
             $this->_extract($d);
     }
 
+    //  --pattern="*" @see php fnmatch
     function extractAll() {
-        foreach (Core::indexReader() as $d) {
+        foreach (Core::indexReader("".@$this->opts['pattern']) as $d) {
             $this->_extract($d);
         }
     }
@@ -704,11 +708,9 @@ class Extractor {
             echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
             return;
         }
-        $pattern = "".@$this->opts[2];
         // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
-        foreach (Core::indexReader() as $d) {
-            if ($pattern && ! fnmatch($pattern, $d[0]))
-                continue;
+        $wildcard = "".@$this->opts[2];
+        foreach (Core::indexReader($wildcard) as $d) {
             $d[1] = bin2hex($d[1]);
             $d[2] = bin2hex($d[2]);
             $d[3] = base_convert($d[3], 10, 8);

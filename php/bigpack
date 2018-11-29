@@ -86,10 +86,14 @@ class Cli extends \hb\util\CliTool {
     /**
      * extract all or specific files from archive
      *
-     * Usage: bigpack extract file1 file2 file3 ...
+     * Usage:
+     *    bigpack extract file1 file2 file3 ...
+     *    bigpack extract --all
+     *    bigpack extract --pattern="pattern"           << only one pattern supported
      *
      * Options:
      *  --all      - extract all files
+     *  --pattern  -
      *  --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
      *                    run "bigpack list" to see all files aand data-hashes
      *  --cat      - dump file to STDOUT
