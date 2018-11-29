@@ -68,6 +68,7 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 
 ## bigpack deleteContent `[--undelete]`
 * Mark specific Content as Deleted/Undeleted (e.g. DMCA request)
+* Important: actual content is NOT deleted. use --undelete to undelete
 * web server will return HTTP 410 GONE for files
 
 ## bigpack generateIndex
@@ -76,7 +77,7 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 ## bigpack removeArchived
 * remove alredy archived files (file last-modification-check performed)
 
-## bigpack purge (TODO)
+## bigpack purge (todo)
 * removes unused file contents, clean up BigPack.deleted
 * rebuild indexes
 * optionally specify how many revisions you want to retain
