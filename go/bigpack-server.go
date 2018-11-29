@@ -41,10 +41,11 @@ var (
 )
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
+	// w.Header().Set("Content-Type", "text/html")
 	g_RequestServed++
-	fmt.Fprintf(w, "Path is: "+r.URL.Path)
-	fmt.Fprintf(w, "<h1>BigPack golang server</h1>")
+	g_Server.Serve(w, r)
+	//fmt.Fprintf(w, "Path is: "+r.URL.Path)
+	//fmt.Fprintf(w, "<h1>BigPack golang server</h1>")
 }
 
 func ReloadHandler(w http.ResponseWriter, r *http.Request) {

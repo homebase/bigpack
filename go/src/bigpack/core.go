@@ -1,5 +1,10 @@
 package bigpack
 
+import (
+    "crypto/md5"
+    "os"
+    "log"
+)
 
 const (
     // filenames
@@ -21,7 +26,29 @@ type (
     bphash [10]byte
 )
 
+// Generic function
+func ReadFileSlice(filename string, offset int, count int)  (data []byte, cnt int) {
+   file, _ := os.Open(filename)
+   defer file.Close()
+   _, err := file.Seek(int64(offset), 0) // from beginning of file
+   if err != nil {
+      log.Fatal(err)
+   }
+   data = make([]byte, count)
+   cnt, err = file.Read(data)
+   if err != nil {
+      log.Fatal(err)
+   }
+   return
+}
+
 func ReadOffset(offset int) (string, bphash, byte) {
+    data, cnt := ReadFileSlice(FILE_DATA, offset, 16384) // 16K
+    var dh bphash
+    // PREFIX IS:
+    //    uint32 size, byte size_high_byte, byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
+
+
     flags := 0
     return "DATA", bpHash("DATA"),  byte(flags)
     /*
@@ -57,10 +84,9 @@ func ReadOffset(offset int) (string, bphash, byte) {
      */
 }
 
-func bpHash(data string) bphash {
-    /*
-    $md5 = hash("md5", $data, 1);
-    return substr($md5, 0, 10);
-    */
-   return bphash {0,1,2,3,4,5,6,7,8,9}
+func bpHash(data string) (bh bphash) {
+   r := md5.Sum([]byte(data))
+   copy(bh[:], r[0:10])  // convert []byte to [10]byte
+   return
+   // return bphash {r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9]}
 }

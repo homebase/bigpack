@@ -1,5 +1,6 @@
 #!/bin/sh
 
+RUN=$(pwd)
 export GOPATH=$(pwd)
 FN=bigpack-server.go
 FO=bigpack-server
@@ -20,7 +21,8 @@ rm -f $FO.old
 sudo mkdir -p /run/bigpack
 sudo chown $USER /run/bigpack
 cd sample
-../$FO
+echo $RUN/$FO
+$RUN/$FO
 
 
 

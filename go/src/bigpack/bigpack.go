@@ -1,33 +1,28 @@
 package bigpack
 
 import (
-    "io/ioutil"
     "fmt"
+    "net/http"
 )
 
 type (
 
     Server struct {
-        data  string
-        cnt int
+        map2 MAP2
     }
 
 )
 
 
 // init should fail on any errors
-func (m Server) Init() {
-    b, err := ioutil.ReadFile(FILE_MAP2)
-    if err != nil {
-        panic(err)
-    }
-    m.data = string(b)
-    m.cnt = len(m.data) / 10
-    fmt.Printf("%s Init. count=%d\n", FILE_MAP2, m.cnt)
+func (s *Server) Init() {
+    s.map2 = MAP2 {}
+    s.map2.Read()
+    //fmt.Printf("* m.map2.data size %d\n", len(m.map2.data))
 }
 
 
-func (m Server) InitMime() {
+func (s Server) InitMime() {
 /*
         $file = $this->opts['mime-types'] ?? "/etc/mime.types";
         $source = file($file);
@@ -46,13 +41,23 @@ func (m Server) InitMime() {
  */
 }
 
-func (m Server) Serve(uri string) {
+func (s *Server) Serve(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "text/html")
+    uri := r.URL.Path
+    if uri[len(uri)-1:] == "/" {
+        uri = "/index.html";
+    }
+    uri = uri[1:]  // cut leading "/"
+    fh := bpHash(uri)
+    fmt.Fprintf(w, "Path is: %s<br>", uri)
+    fmt.Fprintf(w, "FH is: %x<br>", fh)
+    offset := s.map2.Offset(fh)
+    // offset := s.map2.Index(fh)
+    fmt.Fprintf(w, "Offset is: %v<br>", offset)
+    fmt.Fprintf(w, "<h1>BigPack golang server</h1>")
+}
+
 /*
-        // @$this->stats['requests']++;
-        // fwrite(STDERR, json_encode([$this->stats, $this->opts])."\n");
-        $file = substr($uri, 1) ?: "index.html";
-        if ($file{-1} === '/')
-            $file .= "index.html";
         $fh = Core::hash($file);
         $offset = $this->_offset($fh);
         if ($offset === 0) {
@@ -91,4 +96,3 @@ func (m Server) Serve(uri string) {
         echo $data;
  */
 
-}
