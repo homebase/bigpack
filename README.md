@@ -15,14 +15,14 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
   * Limiting factor is your Network/SSD/KernelTCPStack speed
     filesystem overhead completely eliminated
   * 2-level-index needs only ~3MB RAM for 100M files, ~20MB for 1B archived files
-    one extra 8K (ssd sector size) read per file
+    one 8K index read per file
   * One level index needs 1.5GB RAM for 100M files (no extra reads, only ~9 memory reads per request)
 * Limits:
-    * Archive(Shard) Size: `256TB (2**48)`
+    * Max Archive(Shard) Size: `256TB (2**48)`
     * Max Shards: `65536 (2**16)`
     * Max Stored Data Size: `16,777PB (petabytes)` || `16.7EB (exabytes)`
-    * Archived File Max-Size: `1TB (2**40)`
-    * Archived File Count: `4.3 Billion files (2**32)`
+    * Max Archived File Size: `1TB (2**40)`
+    * Max Archived File Count: `4.3 Billion files (2**32)`
     * File-Content-Hash: `80bit`
     * File-Name-Hash: `80bit`
 * Recommendations:

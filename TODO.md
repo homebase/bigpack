@@ -1,5 +1,10 @@
 # Ideas / TODO:
 
+## Switch to 4K blocks for MAP2
+   memory-wise we'll use 2x more RAM, but MAP2 indexes are small! anyway
+   even most ssd have 8k blocks (4k may be faster) - test this idea
+   @see http://codecapsule.com/2014/02/12/coding-for-ssds-part-2-architecture-of-an-ssd-and-benchmarking/
+
 ## Sharding - TODO
 * One Server Sharding:
     * URL(filename) >> choose shard >> serve data
@@ -38,3 +43,5 @@ Example:
 ## bigpack merge (todo)
  * merge two or more bigpacks
 * rebuild indexes
+
+

@@ -11,7 +11,9 @@
 
     TODO:
     > graceful data reload (load new index2) - (no lost requests)
-    > loaded MAP chunks verification. automatic server restart when
+      kill -1 $PID
+    > loaded MAP chunks verification. automatic MAP2 reload when data mismatch
+      no race conditions
 
 */
 
