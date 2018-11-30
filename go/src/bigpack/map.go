@@ -18,7 +18,6 @@ type (
     MAP2 struct {
         data  []byte
         cnt   int
-        imap   MAP
     }
 
 )
@@ -30,7 +29,7 @@ func (m *MAP) Read(block int) {
    cnt := 0
    m.data, cnt = ReadFileSlice(FILE_MAP, block * 8192, 8192)
    m.cnt = cnt >> 4  // 16 byte block
-   fmt.Printf("MAP read block %v cnt: %v\n", block, m.cnt)
+   // fmt.Printf("MAP read block %v cnt: %v\n", block, m.cnt)
 }
 
 /**
@@ -130,8 +129,9 @@ func (m *MAP2) Index(fh bphash) (pos int) { // INDEX(NN) of 8K block in-MAP file
 
 func (m *MAP2) Offset(fh bphash) (offset int) {
     block_index := m.Index(fh)
-    m.imap.Read(block_index)
-    return m.imap.Offset(fh)
+    imap := MAP {}
+    imap.Read(block_index)
+    return imap.Offset(fh)
 }
 
 /*
