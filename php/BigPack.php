@@ -120,13 +120,13 @@ class Core {
         fseek($fh, $offset, SEEK_SET);
         $data = fread($fh, $READ_BUFFER);
         $d = unpack("Lsize/chsize/a10dh/cflag", $data); // LOWERCASE "a", uppercase "A" corrupt data
+        $d['size'] += $d['hsize'] << 32; // High Byte #5
         // var_dump([$offset, $d]);
         if ($d['size'] <= $READ_BUFFER - Core::DATA_PREFIX) { // prefix size
             $data = substr($data, Core::DATA_PREFIX, $d['size']);
         } else {
             $data = substr($data, Core::DATA_PREFIX);
-            $d['size'] += $d['hsize'] << 32; // High Byte #5
-            $remaining = $d['size'] - (Core::DATA_PREFIX - $READ_BUFFER);  // << BUG ????
+            $remaining = $d['size'] - ($READ_BUFFER - Core::DATA_PREFIX);
             $data = $data.fread($fh, $remaining);
         }
         fclose($fh);

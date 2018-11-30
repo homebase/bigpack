@@ -9,17 +9,16 @@
  *     mime-types=/etc/mime.types   << DEFAULT (use same format)
  *     expires-minutes=50            << DEFAULT 0
  *
- * Safe sync procedure: - no requests lost
- *   1. rsync BigPack.data (data files are incremental)
- *   2. rsync BigPack.map2 (map2 file is always cached)
- *   3. rsync BigPack.map  (rsync replaces file instantly)
- *
- * TODO:
  *   [+] HTTP-ETAG tag  == ContentHash support
  *   [+] HTTP-Expires Tag
  *   [+] HTTP 410 GONE for deleted files
  *   [+] MAP2/MAP out of sync (new MAP file upload)
  *       re-read MAP2 file, try again, if still out-of-sync - return 500
+ *
+ * TODO:
+ *   Keep Data File Opened
+ *   Avoid whole-file reads when ETAG matches
+ *
  */
 
 
