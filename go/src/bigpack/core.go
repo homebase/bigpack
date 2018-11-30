@@ -4,6 +4,7 @@ import (
     "crypto/md5"
     "os"
     "log"
+    "encoding/binary"
 )
 
 const (
@@ -20,6 +21,9 @@ const (
     FLAG_DELETED = 2;
 
     FILE_DATA_PREFIX = 16; // bytes
+
+    // Data Read Buffer
+    DATA_READ_BUFFER = 16384  // 16K
 )
 
 type (
@@ -27,6 +31,7 @@ type (
 )
 
 // Generic function
+// Read Slice of File
 func ReadFileSlice(filename string, offset int, count int)  (data []byte, cnt int) {
    file, _ := os.Open(filename)
    defer file.Close()
@@ -42,51 +47,48 @@ func ReadFileSlice(filename string, offset int, count int)  (data []byte, cnt in
    return
 }
 
-func ReadOffset(offset int) (string, bphash, byte) {
-    data, cnt := ReadFileSlice(FILE_DATA, offset, 16384) // 16K
-    var dh bphash
+// extract STORED-FILE-DATA from given offset at DATAFILE
+func ReadDataOffset(offset int) (data []byte, dh bphash, flags byte) { // data, bpHash(data), flags
+    file, _ := os.Open(FILE_DATA)
+    defer file.Close()
+    _, err := file.Seek(int64(offset), 0) // from beginning of file
+    if err != nil {
+        log.Fatal(err)
+    }
+    data = make([]byte, DATA_READ_BUFFER)
+    _, err = file.Read(data)
+    if err != nil {
+        log.Fatal(err)
+    }
+
     // PREFIX IS:
     //    uint32 size, byte size_high_byte, byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
-
-
-    flags := 0
-    return "DATA", bpHash("DATA"),  byte(flags)
-    /*
-            static $READ_BUFFER = 1024 * 16; // 16K
-        // read 16K
-        $fh = fopen(Core::DATA, "rb");
-        // DATA IS: Prefix + $data
-        //    pack("LA10c", $len, $data_hash, $flags).$data;
-        // PREFIX IS:
-        //    uint32 size, byte size_high_byte, byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
-        fseek($fh, $offset, SEEK_SET);
-        $data = fread($fh, $READ_BUFFER);
-        $d = unpack("Lsize/chsize/a10dh/cflag", $data); // LOWERCASE "a", uppercase "A" corrupt data
-        // var_dump([$offset, $d]);
-        if ($d['size'] <= $READ_BUFFER - Core::DATA_PREFIX) { // prefix size
-            $data = substr($data, Core::DATA_PREFIX, $d['size']);
-        } else {
-            $data = substr($data, Core::DATA_PREFIX);
-            $d['size'] += $d['hsize'] << 32; // High Byte #5
-            $remaining = $d['size'] - (Core::DATA_PREFIX - $READ_BUFFER);
-            $data = $data.fread($fh, $remaining);
+    size := int(binary.LittleEndian.Uint32(data[0:4])) + (int(data[4]) << 32)
+    copy(dh[:], data[6:16])  // convert slice to [10]byte
+    flags = data[15]
+    if flags & FLAG_DELETED > 0 {
+        return data[0:0], bphash{}, flags
+    }
+    remaining := size - DATA_READ_BUFFER + FILE_DATA_PREFIX
+    // fmt.Printf("size,offset ", size, offset, remaining)
+    if remaining <= 0 { // we read extra data - cut is off
+        data = data[FILE_DATA_PREFIX:FILE_DATA_PREFIX+size]
+    } else { // have to read more
+        data2 := make([]byte, remaining)
+        len2, err := file.Read(data2)
+        if err != nil {
+            log.Fatal(err)
         }
-        fclose($fh);
-        if ($d['flag'] & Core::FLAG_DELETED)
-            return ["", "", $d['flag']]; // File Deleted
-        if ($raw)
-            return [$data, $d['dh'], $d['flag'] & Core::FLAG_GZIP];
-        if ($d['flag'] & Core::FLAG_GZIP) {
-            $data = gzinflate($data);
-            $d['flag'] ^= Core::FLAG_GZIP; // gzip no more
+        if len2 != remaining {
+            log.Fatal("DataFile second-read less data than expected")
         }
-        return [$data, $d['dh'], $d['flag']];
-     */
+        data = append(data, data2...)
+    }
+    return
 }
 
 func bpHash(data string) (bh bphash) {
    r := md5.Sum([]byte(data))
    copy(bh[:], r[0:10])  // convert []byte to [10]byte
    return
-   // return bphash {r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9]}
 }

@@ -126,7 +126,7 @@ class Core {
         } else {
             $data = substr($data, Core::DATA_PREFIX);
             $d['size'] += $d['hsize'] << 32; // High Byte #5
-            $remaining = $d['size'] - (Core::DATA_PREFIX - $READ_BUFFER);
+            $remaining = $d['size'] - (Core::DATA_PREFIX - $READ_BUFFER);  // << BUG ????
             $data = $data.fread($fh, $remaining);
         }
         fclose($fh);

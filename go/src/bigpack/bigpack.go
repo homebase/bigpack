@@ -1,8 +1,10 @@
 package bigpack
 
 import (
-    "fmt"
     "net/http"
+    "encoding/hex"
+    "fmt"
+    "strings"
 )
 
 type (
@@ -42,19 +44,70 @@ func (s Server) InitMime() {
 }
 
 func (s *Server) Serve(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "text/html")
+    // TODO:
+    //  1. ETAG
+    //  2. Mime Types
+    //  3. GZIP (Deflate)
+    //  4. Expires
+    //
+    //
+    _, debug := r.URL.Query()["debug"]
+
+
     uri := r.URL.Path
     if uri[len(uri)-1:] == "/" {
         uri = "/index.html";
     }
     uri = uri[1:]  // cut leading "/"
     fh := bpHash(uri)
-    fmt.Fprintf(w, "Path is: %s<br>", uri)
-    fmt.Fprintf(w, "FH is: %x<br>", fh)
     offset := s.map2.Offset(fh)
-    // offset := s.map2.Index(fh)
-    fmt.Fprintf(w, "Offset is: %v<br>", offset)
-    fmt.Fprintf(w, "<h1>BigPack golang server</h1>")
+    if debug {
+        fmt.Fprintf(w, "URI: %v<br>FileHash: %x<br>Offset: %x hex, %d dec<br>\n", uri, fh, offset, offset)
+    }
+    if offset == 0 {
+        w.WriteHeader(404)
+        w.Write([]byte("404 - Not Found"))
+        return
+    }
+    if offset == 1 {
+        w.WriteHeader(500)
+        w.Write([]byte("500 - Server Error - Index out of sync"))
+        return
+    }
+
+    // READING FILE
+    // todo:
+    //   optimize - split read in two - we do not need to read whole file for If-None-Match
+    //   we also do not need to read all file into memory, just a chunks of it
+    //
+    data, data_hash, flags := ReadDataOffset(offset)
+    if flags & FLAG_DELETED > 0 {
+        w.WriteHeader(http.StatusGone)
+        w.Write([]byte("410 - Gone"))
+        return
+    }
+
+    ask_etag := strings.Trim(r.Header.Get("If-None-Match"), "\"")
+    etag := hex.EncodeToString(data_hash[:])
+    if debug {
+        fmt.Fprintf(w, "Flags: %x<br>DataHash/ETag: %s<br>ask_etag: %v\n", flags, etag, ask_etag)
+        return
+    }
+    if etag == ask_etag {
+        w.WriteHeader(http.StatusNotModified)
+        w.Write([]byte("\n"))
+        return
+    }
+
+    // Serving File - Headers
+    w.Header().Set("Content-Type", "text/html")
+    w.Header().Set("ETag", etag)
+    if flags & FLAG_GZIP > 0 {
+        w.Header().Set("Content-Encoding", "deflate");
+    }
+
+    // Serving File - Data
+    w.Write(data)
 }
 
 /*
