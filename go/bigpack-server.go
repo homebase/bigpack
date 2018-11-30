@@ -10,8 +10,8 @@
      see more: https://wiki.apache.org/httpd/NonRootPortBinding
 
     TODO:
-    > make package
     > graceful data reload (load new index2) - (no lost requests)
+    > loaded MAP chunks verification. automatic server restart when
 
 */
 
