@@ -5,6 +5,8 @@ import (
     "encoding/hex"
     "fmt"
     "strings"
+    "path/filepath"
+    "mime"
 )
 
 type (
@@ -45,28 +47,25 @@ func (s Server) InitMime() {
 
 func (s *Server) Serve(w http.ResponseWriter, r *http.Request) {
     // TODO:
-    //  1. ETAG
-    //  2. Mime Types
-    //  3. GZIP (Deflate)
     //  4. Expires
-    //
     //
     _, debug := r.URL.Query()["debug"]
 
-
     uri := r.URL.Path
     if uri[len(uri)-1:] == "/" {
-        uri = "/index.html";
+        uri += "index.html";
     }
     uri = uri[1:]  // cut leading "/"
     fh := bpHash(uri)
+
     offset := s.map2.Offset(fh)
     if debug {
-        fmt.Fprintf(w, "URI: %v<br>FileHash: %x<br>Offset: %x hex, %d dec<br>\n", uri, fh, offset, offset)
+        fmt.Fprintf(w, "URI: %v\nFileHash: %x\nOffset: 0x%x / %d\n", uri, fh, offset, offset)
     }
     if offset == 0 {
         w.WriteHeader(404)
-        w.Write([]byte("404 - Not Found"))
+        fmt.Fprintf(w, "404 - %v not found. fh=%x\n", uri, fh)
+        w.Write([]byte(""))
         return
     }
     if offset == 1 {
@@ -80,27 +79,33 @@ func (s *Server) Serve(w http.ResponseWriter, r *http.Request) {
     //   optimize - split read in two - we do not need to read whole file for If-None-Match
     //   we also do not need to read all file into memory, just a chunks of it
     //
+    ask_etag := strings.Trim(r.Header.Get("If-None-Match"), "\"")
     data, data_hash, flags := ReadDataOffset(offset)
     if flags & FLAG_DELETED > 0 {
         w.WriteHeader(http.StatusGone)
         w.Write([]byte("410 - Gone"))
         return
     }
-
-    ask_etag := strings.Trim(r.Header.Get("If-None-Match"), "\"")
     etag := hex.EncodeToString(data_hash[:])
+
     if debug {
-        fmt.Fprintf(w, "Flags: %x<br>DataHash/ETag: %s<br>ask_etag: %v\n", flags, etag, ask_etag)
+        fmt.Fprintf(w, "Flags: %x\nDataHash/ETag: %s\nAsk-ETag: %v", flags, etag, ask_etag)
         return
     }
-    if etag == ask_etag {
-        w.WriteHeader(http.StatusNotModified)
-        w.Write([]byte("\n"))
-        return
-    }
+
+    // temp off for debugging
+    //if etag == ask_etag {
+    //    w.WriteHeader(http.StatusNotModified)
+    //    w.Write([]byte("\n"))
+    //    return
+    //}
 
     // Serving File - Headers
-    w.Header().Set("Content-Type", "text/html")
+    // mime-type
+    ext := filepath.Ext(uri)
+    mime_type := mime.TypeByExtension(ext)
+    w.Header().Set("Content-Type", mime_type)
+
     w.Header().Set("ETag", etag)
     if flags & FLAG_GZIP > 0 {
         w.Header().Set("Content-Encoding", "deflate");

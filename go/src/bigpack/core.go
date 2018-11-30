@@ -48,6 +48,11 @@ func ReadFileSlice(filename string, offset int, count int)  (data []byte, cnt in
 }
 
 // extract STORED-FILE-DATA from given offset at DATAFILE
+//
+// TODO:
+//       Support for ETAG Parameter
+//       Member of Map
+//
 func ReadDataOffset(offset int) (data []byte, dh bphash, flags byte) { // data, bpHash(data), flags
     file, _ := os.Open(FILE_DATA)
     defer file.Close()
@@ -64,7 +69,7 @@ func ReadDataOffset(offset int) (data []byte, dh bphash, flags byte) { // data, 
     // PREFIX IS:
     //    uint32 size, byte size_high_byte, byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
     size := int(binary.LittleEndian.Uint32(data[0:4])) + (int(data[4]) << 32)
-    copy(dh[:], data[6:16])  // convert slice to [10]byte
+    copy(dh[:], data[5:15])  // convert slice to [10]byte
     flags = data[15]
     if flags & FLAG_DELETED > 0 {
         return data[0:0], bphash{}, flags
@@ -82,7 +87,7 @@ func ReadDataOffset(offset int) (data []byte, dh bphash, flags byte) { // data, 
         if len2 != remaining {
             log.Fatal("DataFile second-read less data than expected")
         }
-        data = append(data, data2...)
+        data = append(data[FILE_DATA_PREFIX:], data2...)
     }
     return
 }
