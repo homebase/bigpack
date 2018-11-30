@@ -1,10 +1,21 @@
 package bigpack
 
+/**
+ * Provides fast lookup of "BigPack.data" offset based on 80bit filename-hash
+ *
+ * Working with
+ *   BigPack.map    << index of BigPack.data  - read in 8k blocks
+ *   BigPack.map2   << index of BigPack.map   - always kept in memory
+ *
+ * Note: BigPack.index is not used at all!
+ *
+ */
+
 import (
     "bytes"
     // "sync/atomic"
     "io/ioutil"
-    "fmt"
+    "log"
     "encoding/binary"
 )
 
@@ -89,7 +100,7 @@ func (m *MAP2) Read() {
     }
     m.data = data
     m.cnt = len(m.data) / 10
-    fmt.Printf("%s Init. count=%d\n", FILE_MAP2, m.cnt)
+    log.Printf("%s Init. map2 item count=%d\n", FILE_MAP2, m.cnt)
 }
 
 

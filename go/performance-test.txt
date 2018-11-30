@@ -1,0 +1,75 @@
+Tests:
+ ~20K Requests per second
+  on 350MB bigpack archive with 22K items inside
+ ab -n 10000 -c 100 http://self/flags/normal/us.png
+
+
+Document Path:          /flags/normal/us.png
+Document Length:        11584 bytes
+Concurrency Level:      16
+Time taken for tests:   0.508 seconds
+Complete requests:      10000
+Failed requests:        0
+Total transferred:      117240000 bytes
+HTML transferred:       115840000 bytes
+Requests per second:    19683.41 [#/sec] (mean)
+Time per request:       0.813 [ms] (mean)
+Time per request:       0.051 [ms] (mean, across all concurrent requests)
+Transfer rate:          225359.69 [Kbytes/sec] received
+
+
+
+Document Path:          /flags/normal/ca.png
+Document Length:        3934 bytes
+Concurrency Level:      100
+Time taken for tests:   0.519 seconds
+Complete requests:      10000
+Failed requests:        0
+Total transferred:      40740000 bytes
+HTML transferred:       39340000 bytes
+Requests per second:    19268.86 [#/sec] (mean)
+Time per request:       5.190 [ms] (mean)
+Time per request:       0.052 [ms] (mean, across all concurrent requests)
+Transfer rate:          76661.47 [Kbytes/sec] received
+
+Document Path:          /flags/us.png
+Document Length:        564 bytes
+Concurrency Level:      10
+Time taken for tests:   0.515 seconds
+Complete requests:      10000
+Failed requests:        0
+Total transferred:      7250000 bytes
+HTML transferred:       5640000 bytes
+Requests per second:    19411.75 [#/sec] (mean)
+Time per request:       0.515 [ms] (mean)
+Time per request:       0.052 [ms] (mean, across all concurrent requests)
+Transfer rate:          13743.67 [Kbytes/sec] received
+
+Document Path:          /flags/
+Document Length:        3574 bytes
+Concurrency Level:      16
+Time taken for tests:   0.496 seconds
+Complete requests:      10000
+Failed requests:        0
+Total transferred:      37290000 bytes
+HTML transferred:       35740000 bytes
+Requests per second:    20141.60 [#/sec] (mean)
+Time per request:       0.794 [ms] (mean)
+Time per request:       0.050 [ms] (mean, across all concurrent requests)
+Transfer rate:          73347.67 [Kbytes/sec] received
+
+> ab -n 1000000 -c 100 http://self/flags/normal/us.png
+Server Hostname:        self
+Server Port:            80
+Document Path:          /flags/normal/us.png
+Document Length:        11584 bytes
+Concurrency Level:      100
+Time taken for tests:   54.497 seconds
+Complete requests:      1000000
+Failed requests:        0
+Total transferred:      11724000000 bytes
+HTML transferred:       11584000000 bytes
+Requests per second:    18349.72 [#/sec] (mean)
+Time per request:       5.450 [ms] (mean)
+Time per request:       0.054 [ms] (mean, across all concurrent requests)
+Transfer rate:          210090.00 [Kbytes/sec] received

@@ -1,0 +1,13 @@
+#!/bin/sh
+
+sudo mkdir -p /run/bigpack
+sudo chown $USER /run/bigpack
+#cd sample
+#echo $RUN/$FO
+#$RUN/$FO
+
+cd /home/parf/src/bigpack-test
+sudo setcap 'cap_net_bind_service=+ep' /home/parf/src/bigpack/go/bigpack-server
+GOMAXPROCS=16 /home/parf/src/bigpack/go/bigpack-server --port "self:80"
+
+
