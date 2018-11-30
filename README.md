@@ -10,6 +10,7 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
   better compression level than tar.gz
 * Optionally shards files (up to 65536 shards) (todo)
 * Serve specific files via http fast
+  * 20K/sec random queries, 200MB/sec effective network traffic (developer PC, 400MB bigpack archive)
   * Compact and Efficient Indexes
   * Limiting factor is your Network/SSD/KernelTCPStack speed
     filesystem overhead completely eliminated
