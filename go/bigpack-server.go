@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"syscall"
 	"time"
 )
 
@@ -38,6 +39,10 @@ var (
 	g_TimeStarted   time.Time // time since last Init()
 	g_RequestServed int       = 0
 	g_Server        bigpack.Server
+)
+
+const (
+	LOG_STATISTIC_EVERY = 20 // minutes
 )
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
@@ -82,16 +87,26 @@ func MemReport(event string) {
 }
 
 func Init() {
-	MemReport("Bigpack-Server Init")
+	MemReport(fmt.Sprintf("Bigpack-Server Init. PID=%d", os.Getpid()))
 	g_Server = bigpack.Server{} //  { map: "", cnt: 0, }
 	g_Server.Init()
 	g_TimeStarted = time.Now()
 	MemReport("Init Complete")
 }
 
+// Log server statistics on stdout
+func LogStatistics() {
+	last := g_RequestServed
+	for {
+		time.Sleep(time.Second * 60 * LOG_STATISTIC_EVERY)
+		log.Printf("Requests Served: %d (+%d)", g_RequestServed, g_RequestServed-last)
+		last = g_RequestServed
+	}
+}
+
 func main() {
 	pid_file := flag.String("pid", "/run/bigpack/server.pid", "pidfile location")
-	port := flag.String("port", "127.0.0.1:8081", "listen ip and port")
+	listen := flag.String("listen", "127.0.0.1:8081", "listen ip and port")
 	test := flag.Int("test", 0, "DEBUG-ONLY turn on test mode. supported value: 1")
 	flag.Parse()
 
@@ -102,10 +117,10 @@ func main() {
 	Prepare(pid_file) // check permisssions, dir, structure, write pid file
 	defer os.Remove(*pid_file)
 
-	// support kill
+	// support ^C and kill
 	go func() {
 		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
+		signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-c
 		fmt.Printf("\nexiting.. %v", sig)
 		os.Remove(*pid_file)
@@ -114,12 +129,21 @@ func main() {
 
 	Init()
 
-	log.Printf("BigPack Server Started, listening at %s\n", *port)
-	defer log.Println("*** Server Finished")
+	// support ^C and kill
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, syscall.SIGHUP)
+		sig := <-c
+		fmt.Printf("\nGOT RELOAD SIGNAL.. %v\n", sig)
+		Init() // TODO - use channel
+	}()
 
 	http.HandleFunc("/", RootHandler)
 	http.HandleFunc("/status", StatusHandler)
 	http.HandleFunc("/reload", ReloadHandler)
-	log.Fatal(http.ListenAndServe((*port), nil))
+	log.Printf("BigPack Server Started, listening at %s\n", *listen)
+	defer log.Println("*** Server Finished")
+	go LogStatistics()
+	log.Fatal(http.ListenAndServe((*listen), nil))
 
 }
