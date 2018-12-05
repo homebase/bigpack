@@ -153,8 +153,13 @@ class Cli extends \hb\util\CliTool {
     /**
      * generate index.html with links to all files stored in bigpack
      *
-     * Create good index with pagination (directories, statistics)
+     * to generate JPG image index / display pages do:
+     *    bigpack list --name-only "*.jpg" | perl -ne 'chomp; print "<h2>$.: $_</h2><img src=\\"$_\\"><br>\n"' > image-list.html
+     *    split image-list.html "image-list-" --additional-suffix=".html"  --numeric-suffixes=1 -l 100
+     *    ls image-list-* | perl -ne 'chomp; print "$. <a href=\\"$_\\">$_</a><br>\n"' > image-list.html
+     *    bigpack add
      *
+     * @todo : Create good index with pagination (directories, statistics)
      */
     static function generateIndex(array $opts) {
         $cmd = __DIR__.'/bigpack list --name-only | perl -ne \'chomp; print "$. <a href=\\"$_\\">$_</a><br>\n"\'';
@@ -165,12 +170,18 @@ class Cli extends \hb\util\CliTool {
     /**
      * Generate File List from current directory for addFromFileList command
      *
-     * Filelist is gzipped result of `find . -printf "%p\t%m\t%T@\n"` command
-     * ".git" directory ignored
-     * ".*" files/directories ignored (hidden files)
+     * Filelist is gzip of `find . -printf "%p\t%m\t%T@\n" | sed 's/^\.\///'` command
+     * e.g. tab delimited list of "FileName FileMod LastModifiedUnixTime"
+     * Example: "somedir/README.md\t664\t1543616888" where "\t" is tab character
+     *
+     * ".*" files/directories ignored (hidden files). ex: ".git" directory ignored
      * "*.gz" files ignored
      *
      * On terabyte+ filesystems generation process alone can take hours (even on SSD)
+     *
+     * Advanced Usage (Data-Source-FileName):
+     *    you can specify Data-Source-FileName for a File (relative or absolute filename)
+     *    tab delimited list of "FileName FileMod LastModifiedUnixTime DataSourceFileName"
      *
      */
     static function generateFileList() {
@@ -181,7 +192,7 @@ class Cli extends \hb\util\CliTool {
     /**
      * create archive / add files from specially formatted filelist
      *
-     * run `bigpack generateFileList` to generate filelist
+     * @see bigpack help generateFileList
      */
     static function addFromFileList(array $opts) {
         if ((new Packer($opts))->addFromFileList($opts)) // if files-added

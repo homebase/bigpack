@@ -338,7 +338,9 @@ class Packer {
         $this->stat['file-size'] = 0;
         $cnt = 0;
         foreach (Util::gzLineReader($filelist) as $line) {
-            [$file, $mode, $file_mtime] = explode("\t", $line);
+            $l = @explode("\t", $line);
+            [$file, $mode, $file_mtime] = $l;
+            $dataSourceFile = $l[3] ?? $file;
             if ($file{0}.$file{1} === './') // cut useless "./" prefix
                 $file = substr($file, 2);
             $filename_hash = Core::hash($file);
@@ -346,9 +348,10 @@ class Packer {
                 @$this->stat['known-files']++;
                 continue;
             }
-            $data = file_get_contents($file);
+            $data = file_get_contents($dataSourceFile);
             $data_hash = Core::hash($data);
             $flags = 0; // bit field
+            $mode = base_convert("$mode", 8, 10);
             $mode = (int) ($mode & 511);
             $file_mtime = (int) $file_mtime;
             if (@$this->opts['gzip'])
@@ -698,18 +701,19 @@ class Extractor {
     //  --name-only
     //  --raw
     function list() {
-        if (@$this->opts['name-only']) {
-            foreach (Core::indexReader() as $d)
-                echo $d[0], "\n";
-            return;
-        }
         if (@$this->opts['raw']) {
             echo shell_exec("cat BigPack.index | column -t");
             echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
             return;
         }
-        // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
+        //
         $wildcard = "".@$this->opts[2];
+        if (@$this->opts['name-only']) {
+            foreach (Core::indexReader($wildcard) as $d)
+                echo $d[0], "\n";
+            return;
+        }
+        // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
         foreach (Core::indexReader($wildcard) as $d) {
             $d[1] = bin2hex($d[1]);
             $d[2] = bin2hex($d[2]);
