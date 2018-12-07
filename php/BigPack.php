@@ -968,9 +968,49 @@ class Indexer {
         }
         sort($this->FH2OFFSET);
         //var_dump(count($this->FH2OFFSET));
+        if ($this->_checkDuplicates())
+            $this->_eliminateDuplicates();
         $this->buildMap();
         $this->buildMap2();
         // $this->buildMapH(); - DO NOT SEE ANY REASON to use MAPH. MAP2+MAP is already FAST enough - at least on my tests
+    }
+
+    /**
+     * do we have duplicate FileHashes  (versioned files)?
+     */
+    function _checkDuplicates() : bool {
+        $ofh = "";
+        foreach ($this->FH2OFFSET as $fho) {
+            $fh = substr($fho, 0, 10);
+            if ($fh === $ofh) {
+                echo "Indexer: Versioned Files Found. fh=".bin2hex($ofh)." Index compression enabled - ";
+                return true;
+            }
+            $ofh = $fh;
+        }
+        return false;
+    }
+
+    /**
+     * Keep only latest version in MAP
+     */
+    function _eliminateDuplicates() {
+        $FH2O = []; // new FH2O
+        $ofh = "";
+        $k = 0;
+        $dups = 0;
+        foreach ($this->FH2OFFSET as $fho) {
+            $fh = substr($fho, 0, 10);
+            if ($fh === $ofh) {
+                $k--;  // force overwrite of old version offset with newer offset
+                $dups++;
+            }
+            $ofh = $fh;
+            $FH2O[$k] = $fho;
+            $k++;
+        }
+        $this->FH2OFFSET = $FH2O;
+        echo "$dups Old Versions Removed From Index\n";
     }
 
     /**
