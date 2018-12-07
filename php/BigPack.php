@@ -64,7 +64,7 @@ class Core {
     CONST DATA  = 'BigPack.data';
     CONST MAP   = 'BigPack.map';
     CONST MAP2  = 'BigPack.map2';
-    CONST MAPH  = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn
+    CONST MAPH  = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn - not used, not needed
     CONST OPTIONS  = 'BigPack.options'; // key=value file, php.ini format
 
     CONST VERSION = '1.0.1'; // semver
@@ -983,6 +983,8 @@ class Indexer {
     }
 
     /**
+     * Not needed - usual lookup are already fast enough !!
+     *
      * Build FileHash to MapIndex Mapping
      * 16-bit-filehash-prefix => FIRST-MAP-ITEM-NN  --- FILE GZIPPED !!!
      * unmapped items points to 0xFFFFFFFF item
