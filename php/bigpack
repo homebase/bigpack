@@ -76,6 +76,7 @@ class Cli extends \hb\util\CliTool {
      *   --skip-files - comma delimited list of files to ignore (in every directory)
      *
      *  TODO: MAP/MAP2 extractor(s) php/golang should always take latest version, so far only "extract" honors latest version extraction
+     *        IDEALLY - index() MAP building functions should build indexes right way = keep only last version
      *
      */
     static function _update(array $opts) {
