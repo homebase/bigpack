@@ -74,8 +74,11 @@ class Cli extends \hb\util\CliTool {
      *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
      *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
      *   --skip-files - comma delimited list of files to ignore (in every directory)
+     *
+     *  TODO: MAP/MAP2 extractor(s) php/golang should always take latest version, so far only "extract" honors latest version extraction
+     *
      */
-    static function update(array $opts) {
+    static function _update(array $opts) {
         if ((new Packer($opts))->updateChanged())  // if files-added
             (new Indexer($opts))->index();
     }
@@ -143,7 +146,7 @@ class Cli extends \hb\util\CliTool {
 
 
     /**
-     * Build Indexes: "map", "map2" files - called automatically after "init, add"
+     * Build Indexes: "map", "map2" files - called automatically after "init, add, update"
      * - "map" (index of index)                  - list of [filehash => offset] (full list)
      * - "map2" (index of map(index of index))   - list of [filehash => offset] (one record for 512 "map" entries)
      */
@@ -170,7 +173,7 @@ class Cli extends \hb\util\CliTool {
      *
      * to generate JPG image index / display pages do:
      *    bigpack list --name-only "*.jpg" | perl -ne 'chomp; print "<h2>$.: $_</h2><img src=\\"$_\\"><br>\n"' > image-list.html
-     *    split image-list.html "image-list-" --additional-suffix=".html"  --numeric-suffixes=1 -l 100
+     *    split image-list.html "image-list-" --additional-suffix=".html"  --numeric-suffixes=1 -l 100 -a 3
      *    ls image-list-* | perl -ne 'chomp; print "$. <a href=\\"$_\\">$_</a><br>\n"' > image-list.html
      *    bigpack add
      *
