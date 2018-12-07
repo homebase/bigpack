@@ -67,7 +67,7 @@ class Core {
     CONST MAPH  = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn - not used, not needed
     CONST OPTIONS  = 'BigPack.options'; // key=value file, php.ini format
 
-    CONST VERSION = '1.0.1'; // semver
+    CONST VERSION = '1.0.2'; // semver
 
     // Signals
     static $STOP_SIGNAL = 0; // kill -SIGINT / -SIGTERM $PID
@@ -240,7 +240,7 @@ class Packer {
 
 
     /**
-     * Generator - scan NEW (unknown) files in directory
+     * Generator - scan NEW (unknown) files
      * returns filename and its hash
      */
     function newFileScanner($dir = null) { # Generator that yields fileName
@@ -255,31 +255,57 @@ class Packer {
     }
 
     /**
-     *  Add NEW Files to existing  archive
+     * Generator - scan KNOWN Changed Files
+     * returns filename and its hash
+     */
+    function changedFileScanner($dir = null) { # Generator that yields fileName
+        foreach ($this->fileScanner($dir) as [$file, $filename_hash]) {
+            $lmd = @$this->KNOWN_FILE[$filename_hash]; // last-modified-date
+            if (! $lmd) {
+                @$this->stat['new-files-skip']++;
+                continue;
+            }
+            if (filemtime($file) == $lmd) {
+                @$this->stat['known-files-skip']++;
+                continue;
+            }
+            @$this->stat['known-files-update']++;
+            yield [$file, $filename_hash];
+        }
+    }
+
+    /**
+     *  Add ALL NEW Files to existing  archive
      */
     function add() : int { # NN files-added
-        if (! file_exists(Core::INDEX)) {
-            Util::error("no BigPack archive found - refusing to run");
+        foreach (Core::indexReader() as $d) {
+            // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
+            $this->KNOWN_FILE[$d[1]] = $d[4];
+            $this->DATAHASH_OFFSET[$d[2]] = $d[6];
         }
-        // load from index: [filehash => 1] into $this->FILES;
-        $fh_index = fopen(Core::INDEX, "r");
-        while (($L = stream_get_line($fh_index, 1024 * 1024, "\n")) !== false) {
-            // [0 => "#FileName", "FilenameHash", "DataHash", "FilePerms", "FileMTime", "AddedTime", "DataOffset"]
-            #$d = explode("\t", $L);
-            if ($L{0} === '#')
-                continue;
-            $p1 = strpos($L, "\t") + 1;
-            $filename_hash = hex2bin(substr($L, $p1, 20)); // 20b (10 bytes int as hex)
-            $this->KNOWN_FILE[$filename_hash] = 1;
-            $dh = hex2bin(substr($L, $p1+21, 20)); // DataHash 20b (10 bytes int as hex)
-            $p2 = strrpos($L, "\t") + 1;
-            $offset = (int) substr($L, $p2);
-            $this->DATAHASH_OFFSET[$dh] = $offset;
-        }
-        fclose($fh_index);
+        if (@$this->opts['replace']) // replace ALL files
+            $this->KNOWN_FILE = [];
         $offset = filesize(Core::DATA);
         return $this->pack($this->newFileScanner(), $offset);
     }
+
+
+    /**
+     * Update changed Files
+     * Will not remove OLD file Content from Archives !!
+     * Will not add unknown files
+     */
+    function updateChanged() : int { # NN files-added
+        foreach (Core::indexReader() as $d) {
+            // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
+            $this->KNOWN_FILE[$d[1]] = $d[4];
+            $this->DATAHASH_OFFSET[$d[2]] = $d[6];
+        }
+        $offset = filesize(Core::DATA);
+        return $this->pack($this->changedFileScanner(), $offset);
+    }
+
+
     /**
      * Create new Archive, add all files
      * Options:
@@ -622,15 +648,13 @@ class Extractor {
         $fh2d = []; // filehash => $index-line
         foreach ($files as $file)
             $fh2file[Core::hash($file)] = $file;
-        foreach (Core::indexReader("".@$this->opts['pattern']) as $d) {
+        foreach (Core::indexReader() as $d) {
+            // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
             if (@$fh2file[$d[1]]) {
-                unset($fh2file[$d[1]]); // extracted
                 //$this->extract($d);   // we need last file revision - can't extract first occurence
                 $fh2d[$d[1]] = $d;
             }
         }
-        if ($fh2file)
-            Util::error("Error: Refusing to extract\nFiles not found:\n  ".join("\n  ", $fh2file));
         foreach ($fh2d as $d)
             $this->_extract($d);
     }
