@@ -91,6 +91,72 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 * 20K/sec random requests on 350MB archive
 * 200MB/sec http traffic served on average developer's computer
 
+# Installation
+```
+[~]$ cd /usr/local/src/
+[src]$ sudo mkdir bigpack
+[src]$ sudo chown $USER bigpack
+[src]$ git clone https://github.com/homebase/bigpack.git 
+Initialized empty Git repository in /usr/local/src/bigpack/.git/
+...
+Receiving objects: 100% (323/323), 5.38 MiB, done.
+Resolving deltas: 100% (194/194), done.
+[src]$ cd /usr/local/bin
+[bin]$ sudo ln -s ../src/bigpack/php/bigpack
+[bin]$ bigpack
+hb\bigpack\Cli::help
+File Compressor with Deduplication.
+...
+```
+
+## Pre-requisites
+git, php7.2, php-pecl-apcu (needed for "bigpack server")
+
+# Usage example
+```
+[~]$ cd 
+[~]$ mkdir tmp
+[~]$ cd tmp
+[tmp]$ ll
+total 0
+[tmp]$ cp /etc/passwd /etc/hosts /etc/resolv.conf .
+[tmp]$ bigpack init
+Starting Packer. Use "kill 882431" to safe-stop process
+{"stats":{"files":3,"file-size":792,"files-compression-skipped":2,"files-compressed":1}}
+
+DONE
+MAP: 3 items 
+MAP2: 1 items
+[tmp]$ bigpack list
+[tmp]$ cp /etc/redhat-release /etc/centos-release /etc/init.conf /etc/php.ini .
+[tmp]$ bigpack add
+Starting Packer. Use "kill 883847" to safe-stop process
+{"stats":{"files":3,"file-size":19701,"files-compression-skipped":3,"known-files":3,"files-compressed":1,"dedup-files":1,"dedup-size":27}}
+
+DONE
+MAP: 7 items 
+MAP2: 1 items
+[tmp]$ bigpack server &
+Starting bigpack php-web server. http://localhost:8080
+
+[~]# curl -I  localhost:8080/php.ini
+HTTP/1.1 200 OK
+Host: localhost:8080
+Date: Wed, 26 Dec 2018 20:44:56 +0000
+Connection: close
+X-Powered-By: PHP/7.2.13
+Content-Encoding: deflate
+Content-type: text/html;charset=UTF-8
+Etag: e0ac131172774a949e70
+
+[~]# curl --compressed  localhost:8080/php.ini | head -10
+;;;;;;;;;;;;;;;;;;;
+; About php.ini   ;
+;;;;;;;;;;;;;;;;;;;
+; PHP's initialization file, generally called php.ini, is responsible for
+; configuring many of the aspects of PHP's behavior.
+....
+```
 
 # See Also
 * [License - MIT](LICENSE)
