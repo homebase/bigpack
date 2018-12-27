@@ -138,10 +138,22 @@ func (m *MAP2) Index(fh bphash) (pos int) { // INDEX(NN) of 8K block in-MAP file
     return
 }
 
+/**
+ * Data File Offset (Offset > 10) or Error Code (Offset is 0, 1, 2)
+ * offset: 0  - File Not Found
+ * offset: 1  - Files out of sync
+ */
 func (m *MAP2) Offset(fh bphash) (offset int) {
     block_index := m.Index(fh)
     imap := MAP {}
     imap.Read(block_index)
+    expected_start := m.data[block_index*10:block_index*10+10]
+    actual_start := imap.data[0:10]
+    if bytes.Compare(actual_start, expected_start) != 0 {
+        // log.Printf("MAP/MAP2 out of sync. actual:%v expected:%v\n", actual_start, expected_start)
+        // send Reload Signal
+        return 1
+    }
     return imap.Offset(fh)
 }
 

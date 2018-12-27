@@ -367,7 +367,7 @@ class Packer {
             $l = @explode("\t", $line);
             [$file, $mode, $file_mtime] = $l;
             $dataSourceFile = $l[3] ?? $file;
-            if ($file{0}.$file{1} === './') // cut useless "./" prefix
+            if ($file{0}.@$file{1} === './') // cut useless "./" prefix
                 $file = substr($file, 2);
             $filename_hash = Core::hash($file);
             if (@$this->KNOWN_FILE[$filename_hash]) {

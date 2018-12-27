@@ -40,7 +40,7 @@ class Cli extends \hb\util\CliTool {
      * Options:
      *   --rm       - remove files after add
      *   --dir      - directory to take files from (default current directory)
-     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
+     *   --gzip=0   - turn off gzip compression (default: gzip on)
      *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
      *   --recreate  - recreate existing BigPack files. CAUTION: you'll lose previosly archived files!
      *   --skip-files - comma delimited list of files to ignore (in every directory)
@@ -56,7 +56,7 @@ class Cli extends \hb\util\CliTool {
      * Options:
      *   --rm       - remove files after add
      *   --dir      - directory to take files from (default current directory)
-     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
+     *   --gzip=0   - turn off gzip compression (default: gzip on)
      *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
      *   --skip-files - comma delimited list of files to ignore (in every directory)
      */
@@ -71,7 +71,7 @@ class Cli extends \hb\util\CliTool {
      * Options:
      *   --rm       - remove files after add
      *   --dir      - directory to take files from (default current directory)
-     *   --gzip=0   - turn off gzip compression of some files (default: gzip on)
+     *   --gzip=0   - turn off gzip compression (default: gzip on)
      *   --skip-gzip="ext1 ext2" - skip gzip compression for files with extensions. default list in: Packer::$skip_gzip_default
      *   --skip-files - comma delimited list of files to ignore (in every directory)
      *
