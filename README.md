@@ -33,58 +33,12 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 * Can use filesystem or raw-partition for data storage
 
 # Use Cases:
-* Combine OpenStreetMap map-tiles in one(several) file, avoid filesystem overhead, serve them super fast
 * Export whole/part-of web site as static pages, serve it
-* Use a separate static pages server for your project, deploy/rollback your files in a second
-* backup storage system with deduplication - keep history
-* make cheap snapshots for your directories
-* use nginx as front-end http2 server (plus you can add your header/footer, whatever)
+* Use as a static pages server for your project, deploy/rollback your files in a second
+* backup solution with deduplication - keep history, cheap snapshots for your project
+* Combine OpenStreetMap map-tiles in one file, avoid filesystem overhead, serve them super fast
+* use nginx as front-end http2 server
 
-# Cli Tools
-
-* run `bigpack help` to see all commands
-* run `bigpack help CommandName` to see command help / options
-
-## bigpack init
-* compress all files in directory/subdirectories
-* build indexes
-
-## bigpack add
-* adds new files to BigPack
-* ignores existing files
-* rebuild indexes
-
-## bigpack list
-* list files in archive (latest revision, or all revisions)
-
-## bigpack extract
-* Extract packed files
-* Extract specific file, file+revision from archive
-
-## bigpack deleteContent `[--undelete]`
-* Mark specific Content as Deleted/Undeleted (e.g. DMCA request)
-* Important: actual content is NOT deleted. use --undelete to undelete
-* web server will return HTTP 410 GONE for files
-
-## bigpack generateIndex
-* generate `index.html` with links to all files stored in bigpack
-
-## bigpack removeArchived
-* remove alredy archived files (file last-modification-check performed)
-
-## bigpack sync $remote
- * SAFE rsync Bigpack, remote web server will be automatically reloaded
-
-## bigpack server (php)
-* Start a webserver, that serves files from  BigPack
-* even this server is more than good enough when placed behind nginx
-* run single-thread PHP server
-* minimal memory requirements
-* Options:
-    * --port   - tcp port number - default 8080
-    * --host   - hostname listen to
-* supports ETAG, EXPIRES
-* compressed(gzdeflate) files served as compressed
 
 ## Golang BigPack Server (go/bigpack-server)
 * high performance bigpack server written in golang
@@ -103,7 +57,7 @@ sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/bigpack-server
 1. last command allows bigpack-server to listen on port 80 from unprivileged user
 2. check https://github.com/homebase/bigpack/releases for latest release version
 
-### Golang web sever usagge
+### Golang web sever usage
 ```
 > cd directory_with_bigpack_archive
 > bigpack-server --help
@@ -181,6 +135,51 @@ Etag: e0ac131172774a949e70
 ; configuring many of the aspects of PHP's behavior.
 ....
 ```
+
+# Cli Tools
+* run `bigpack help` to see all commands
+* run `bigpack help CommandName` to see command help / options
+
+## bigpack init
+* compress all files in directory/subdirectories
+* build indexes
+
+## bigpack add
+* adds new files to BigPack
+* ignores existing files
+* rebuild indexes
+
+## bigpack list
+* list files in archive (latest revision, or all revisions)
+
+## bigpack extract
+* Extract packed files
+* Extract specific file, file+revision from archive
+
+## bigpack deleteContent `[--undelete]`
+* Mark specific Content as Deleted/Undeleted (e.g. DMCA request)
+* Important: actual content is NOT deleted. use --undelete to undelete
+* web server will return HTTP 410 GONE for files
+
+## bigpack generateIndex
+* generate `index.html` with links to all files stored in bigpack
+
+## bigpack removeArchived
+* remove alredy archived files (file last-modification-check performed)
+
+## bigpack sync $remote
+ * SAFE rsync Bigpack, remote web server will be automatically reloaded
+
+## bigpack server (php)
+* Start a webserver, that serves files from  BigPack
+* even this server is more than good enough when placed behind nginx
+* run single-thread PHP server
+* minimal memory requirements
+* Options:
+    * --port   - tcp port number - default 8080
+    * --host   - hostname listen to
+* supports ETAG, EXPIRES
+* compressed(gzdeflate) files served as compressed
 
 # See Also
 * [License - MIT](LICENSE)
