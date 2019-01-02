@@ -92,6 +92,8 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 * 200MB/sec http traffic served on average developer's computer
 
 # Installation
+## Pre-requisites
+`git`, `php7.2`, `php-pecl-apcu` (needed for "bigpack server")
 ```
 [~]$ cd /usr/local/src/
 [src]$ sudo mkdir bigpack
@@ -108,9 +110,25 @@ hb\bigpack\Cli::help
 File Compressor with Deduplication.
 ...
 ```
+## Golang web server installation
+if you need web server functions only - skip php installation
+```
+cd /usr/local/bin
+sudo wget https://github.com/homebase/bigpack/releases/download/1.0.0/bigpack-server
+sudo chmod +x bigpack-server
+sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/bigpack-server
+```
+^^^ last command allows bigpack-server to listen on port 80 from unprivileged user
 
-## Pre-requisites
-git, php7.2, php-pecl-apcu (needed for "bigpack server")
+### Golang web sever usagge
+```
+> cd directory_with_bigpack_archive
+> bigpack-server --help
+Usage of bigpack-server:
+  -listen string
+        listen ip and port (default "127.0.0.1:8081")
+> GOMAXPROCS=8 bigpack-server --listen "my_public_ip:80"
+```
 
 # Usage example
 ```
