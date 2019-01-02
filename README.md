@@ -42,12 +42,12 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 
 ## Golang BigPack Server (go/bigpack-server)
 * high performance bigpack server written in golang
-* 20K/sec random requests on 350MB archive
+* 20K/sec random requests on 350GB archive
 * 200MB/sec http traffic served on average developer's computer
 
 # Installation
 ## Golang web server installation
-provides web server functions only
+provides web server only
 ```
 cd /usr/local/bin
 sudo wget https://github.com/homebase/bigpack/releases/download/1.0.0/bigpack-server
@@ -68,8 +68,10 @@ Usage of bigpack-server:
 ```
 
 ## Bigpack PHP 
-Provides archive management: archiving, extracting, ...[<]
-Provides web server
+Provides cli(command-line) tools:
+* archiving, extracting
+* web server
+* rsync wrapper and other utilities
 
 *Pre-requisites*: `git`, `php7.2`, `php-pecl-apcu` (needed for "bigpack server")
 ```
