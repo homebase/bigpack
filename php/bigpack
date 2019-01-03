@@ -89,7 +89,7 @@ class Cli extends \hb\util\CliTool {
      * hint: use "bigpack list | column -t" for better layout
      *
      * bigpack list
-     * bigpack list "path/file_shell_wildcard" <<  "*?[abc]" see http://php.net/manual/en/function.fnmatch.php
+     * bigpack list "comma-delimited-list-of-patterns" <<  "*dir/*.jpg,dir2/[abc]*.gif" see http://php.net/manual/en/function.fnmatch.php
      *
      * Options:
      *   --name-only - show only file names
@@ -105,11 +105,11 @@ class Cli extends \hb\util\CliTool {
      * Usage:
      *    bigpack extract file1 file2 file3 ...
      *    bigpack extract --all
-     *    bigpack extract --pattern="pattern"           << only one pattern supported
+     *    bigpack extract --pattern="dir1/*.gif,dir2/aa*bb/a?.png"           << comma delimited list ofpatterns
      *
      * Options:
      *  --all      - extract all files
-     *  --pattern  -
+     *  --pattern  - comma delimited list of fnmatch patterns
      *  --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
      *                    run "bigpack list" to see all files aand data-hashes
      *  --cat      - dump file to STDOUT
@@ -214,6 +214,40 @@ class Cli extends \hb\util\CliTool {
         if ((new Packer($opts))->addFromFileList($opts)) // if files-added
             (new Indexer($opts))->index();
     }
+    
+    
+    /**
+     * merge ALL files from external bigpack archive into current archive
+     * 
+     * Required Option:
+     *  --archive-dir="..."      : second archive directory
+     * 
+     * Same as "bigpack addFromArchive --archive-dir="..." --pattern="*"
+     * 
+     */
+    static function merge(array $opts) {
+        $opts["pattern"] = "*";
+        return self::addFromArchive($opts);
+    }
+
+    /**
+     * Add specific files from external bigpack archive into current archive
+     * 
+     * Required Option:
+     *  --archive-dir="..."
+     *  --pattern="..."     - comma separated list of fnmatch patterns
+     *  --all                - add all files
+     * 
+     * cd my-archive
+     * bigpack addFromArchive --archive-dir=path-to-second-archive --pattern="*.jpg,*.jpeg,*.png,*.html"
+     * bigpack addFromArchive --all
+     * 
+     */
+    static function addFromArchive(array $opts) {
+        if ((new Packer($opts))->addFromArchive($opts)) // if files-added
+            (new Indexer($opts))->index();
+    }
+
 
     /**
      * sync BigPack files to remote server/directory
@@ -269,6 +303,19 @@ class Cli extends \hb\util\CliTool {
         echo "Starting bigpack php-web server. http://$host:$port\n";
         shell_exec("php -S $host:$port $server");
     }
+
+    /**
+     * version info and more
+     */
+    static function about(array $opts) {
+        $P = new Packer($opts);
+        $skip_gzip = array_keys($P->skip_gzip);
+        sort($skip_gzip);
+        echo "Version: ".Core::VERSION."\n";
+        echo "Gzip: ".($P->opts['gzip'] ? "on" : "off")."\n";
+        echo "Skip GZIP extensions: ".json_encode($skip_gzip)."\n";
+    }
+
 
 } // Class CLI
 
