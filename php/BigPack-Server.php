@@ -34,6 +34,8 @@ use hb\util\Util;
  */
 class Server {
 
+    const VERSION = "1.0.1";
+
     // shared memory key
     // SHM Data shared only between php-fpm / parent-php-process-children
     static $MAP2_SHM_KEY = "Bigpack.MAP2";
@@ -73,9 +75,9 @@ class ExtractorWeb extends ExtractorMap2 {
     }
 
     function init() {
-        fprintf(STDERR, "%s", "INIT()\n");
+        fprintf(STDERR, "%s", "INIT. Bigpack-Web-Server Version: ".Server::VERSION."\n");
         parent::init();
-        $this->mime_type_init();
+        $this->mimeTypeMapInit();
         $this->expires_min = @$this->opts['expires-minutes'] ?? 0;
     }
 
@@ -83,22 +85,45 @@ class ExtractorWeb extends ExtractorMap2 {
      * read file "--mime-types=$filename" or use /etc/mime.types
      * @return [type] [description]
      */
-    protected function mime_type_init() {
+    protected function mimeTypeMapInit() {
         $file = $this->opts['mime-types'] ?? "/etc/mime.types";
         $source = file($file);
         if (! $source)
-            Util::error("File $file Required");
+        Util::error("File $file Required");
         foreach ($source as $line) {
             if ($line{0} === '#')
-                continue;
+            continue;
             $got = preg_match("/^(.*?)\s+(.*?)$/", $line, $m);
             if (! $got || ! $m[2]) {
                 continue;
             }
             foreach (explode(" ", $m[2]) as $ext)
-                $this->mime_types[$ext] = $m[1];
+            $this->mime_types[$ext] = $m[1];
         }
         # echo "<pre>".json_encode($this->mime_types, JSON_PRETTY_PRINT)."</pre>";
+    }
+    
+    /**
+     * find out mime for an file
+     */
+    protected function mimeType(string $file, string $content, $gzip) {
+        $ext = "";  // will not unzip
+        $ext_pos = strrpos($file, '.', 1);
+        if ($ext_pos === false) { // NO Extension - analyze file
+            if ($gzip) {
+                if (strlen($data) > 65536)
+                    return $this->mime_types["bin"]; // do not de-compress big files
+                $content = gzinflate($content);
+            }
+            $mime = @getimagesizefromstring($content)['mime'];
+            if ($mime)
+                return $mime;
+            if ($content[0] === '<')
+                $ext = "html";
+        } else {
+            $ext = substr($file, $ext_pos +1) ?? "bin";
+        }
+        return $this->mime_types[$ext] ?? "application/octet-stream";
     }
 
     function serve(string $uri) {
@@ -133,12 +158,7 @@ class ExtractorWeb extends ExtractorMap2 {
             header("HTTP/1.1 410 Gone");
             return;
         }
-        //
-        $ext_pos = strrpos($file, '.', 1);
-        $ext = $ext_pos !== false ? substr($file, $ext_pos +1 ) : "html";
-        $mime_type = $this->mime_types[$ext] ?? "text/html";
-        header("Content-Type: $mime_type");
-        //
+        header("Content-Type: ".$this->mimeType($file, $data, $gzip));
         header("Etag: $etag");
         if ($this->expires_min)
             header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + ($this->expires_min * 60)));
