@@ -1,0 +1,20 @@
+# Ideas / ToDo
+#   Sublime Edit PlainTasks Formatted
+
+
+ ☐ Auto Detect mime-type (~ /etc/magic) - unknown mime type case
+       Auto-Detect Images: (gif,png,jpeg,.....)
+       $data       = file_get_contents($img);
+       $data = substr($data, 0, 4096);
+       $info = getimagesizefromstring($data);
+       $mime = $info['mime'];
+       echo "MIME TYPE IS: ".$mime."\n";
+       see also: http://php.net/manual/en/function.exif-imagetype.php
+
+ ☐ BigPack merge
+   bigpack merge --merge-dir="path"
+
+ ☐ BigPack extract-archive
+   bigpack extract-archive --extract-dir="path" --pattern="" --pattern2=".." --pattern3=".." ...
+   http://php.net/manual/en/function.fnmatch.php for patern
+   similar to "bigpack extract --pattern='pattern'" but creates new Archive
