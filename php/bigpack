@@ -242,7 +242,27 @@ class Cli extends \hb\util\CliTool {
      * see "bigpack help addFromArchive" section 'Extract files from bigpack to another bigpack'
      */
     static function split(array $opts) {
-        echo "see \"bigpack help addFromArchive\" section 'Extract files from bigpack to another bigpack'\n";
+        self::help([2 => "split"]);
+    }
+
+    /**
+     * replace files in bigpack archive
+     * 
+     * use "addFromArchive" method
+     * see "bigpack help addFromArchive" section 'Replace files in Archive'
+     */
+    static function replaceFiles(array $opts) {
+        self::help([2 => "replaceFiles"]);
+    }
+
+    /**
+     * remove files from bigpack archive
+     * 
+     * use "addFromArchive" method
+     * see "bigpack help addFromArchive" section 'Remove files from Archive'
+     */
+    static function removeFiles(array $opts) {
+        self::help([2 => "removeFiles"]);
     }
 
     /**
@@ -270,6 +290,18 @@ class Cli extends \hb\util\CliTool {
      *   cd new-archive
      *   bigpack init --bare
      *   bigpack addFromArchive --archive-dir=.. --pattern="*.jpg,*.jpeg,*.png,*.html" --pattern-exclude="exclude-dir/*"
+     * 
+     * Replace files in Archive:
+     *   cd dir-with-new-files
+     *   bigpack init
+     *   bigpack addFromArchive --archive-dir=originalBigPack --all
+     *   # new archive have only new version of files
+     * 
+     * Remove files from Archive:
+     *   mkdir new-dir
+     *   cd new-dir
+     *   bigpack init
+     *   bigpack addFromArchive --archive-dir=originalBigPack --pattern-exclude="path/filename1,path/filename2,pattern"
      * 
      */
     static function addFromArchive(array $opts) {
