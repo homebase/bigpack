@@ -92,6 +92,7 @@ class Cli extends \hb\util\CliTool {
      * bigpack list "comma-delimited-list-of-patterns" <<  "*dir/*.jpg,dir2/[abc]*.gif" see http://php.net/manual/en/function.fnmatch.php
      *
      * Options:
+     *   --pattern-exclude  - comma delimited list of fnmatch patterns (applied AFTER pattern)
      *   --name-only - show only file names
      *   --raw       - show raw data
      */
@@ -105,14 +106,17 @@ class Cli extends \hb\util\CliTool {
      * Usage:
      *    bigpack extract file1 file2 file3 ...
      *    bigpack extract --all
-     *    bigpack extract --pattern="dir1/*.gif,dir2/aa*bb/a?.png"           << comma delimited list ofpatterns
+     *    bigpack extract --pattern="dir1/*.gif,dir2/aa*bb/a?.png"                   << comma delimited list of patterns
+     *    bigpack extract --pattern-exclude="dir1/*.gif,dir2/aa*bb/a?.png"           << comma delimited list of patterns
+     *    bigpack extract --pattern="dir1/*,dir2/*" --pattern-exclude="*.bak,*.tmp"
      *
      * Options:
-     *  --all      - extract all files
-     *  --pattern  - comma delimited list of fnmatch patterns
-     *  --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
-     *                    run "bigpack list" to see all files aand data-hashes
-     *  --cat      - dump file to STDOUT
+     *   --all      - extract all files
+     *   --pattern          - comma delimited list of fnmatch patterns
+     *   --pattern-exclude  - comma delimited list of fnmatch patterns (applied AFTER pattern)
+     *   --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
+     *                     run "bigpack list" to see all files aand data-hashes
+     *   --cat      - dump file to STDOUT
      */
     static function extract(array $opts) {
         (new Extractor($opts))->extract();
@@ -135,8 +139,9 @@ class Cli extends \hb\util\CliTool {
     }
 
     /**
-     * remove already archived files
+     * remove already archived files from filesystem (will not remove directories)
      * will not remove modified files (file-last-modified changed)
+     * delete empty directories using "rmdir $(find . -type d -empty)"
      */
     static function removeArchived(array $opts) {
         (new Packer($opts))->removeArchived();
@@ -223,7 +228,7 @@ class Cli extends \hb\util\CliTool {
      *  --archive-dir="..."      : second archive directory
      * 
      * Same as "bigpack addFromArchive --archive-dir="..." --pattern="*"
-     * 
+     * see "bigpack help addFromArchive" for details
      */
     static function merge(array $opts) {
         $opts["pattern"] = "*";
@@ -231,16 +236,40 @@ class Cli extends \hb\util\CliTool {
     }
 
     /**
-     * Add specific files from external bigpack archive into current archive
+     * split bigpack. create new archive as a subset of existing archive
+     * 
+     * use "addFromArchive" method
+     * see "bigpack help addFromArchive" section 'Extract files from bigpack to another bigpack'
+     */
+    static function split(array $opts) {
+        echo "see \"bigpack help addFromArchive\" section 'Extract files from bigpack to another bigpack'\n";
+    }
+
+    /**
+     * - Add all/specific files from external bigpack archive into current archive
+     * - Extract specific files from archive
      * 
      * Required Option:
      *  --archive-dir="..."
-     *  --pattern="..."     - comma separated list of fnmatch patterns
-     *  --all                - add all files
      * 
-     * cd my-archive
-     * bigpack addFromArchive --archive-dir=path-to-second-archive --pattern="*.jpg,*.jpeg,*.png,*.html"
-     * bigpack addFromArchive --all
+     * Options:
+     *   --pattern          - comma delimited list of fnmatch patterns
+     *   --pattern-exclude  - comma delimited list of fnmatch patterns (applied AFTER pattern)
+     *   --all                - add all files
+     *
+     * Examples:
+     *  
+     * Add files from external bigpack:
+     *   cd my-archive
+     *   bigpack addFromArchive --archive-dir=path-to-second-archive --all
+     *   bigpack addFromArchive --archive-dir=path-to-second-archive --pattern="*.jpg,*.jpeg,*.png,*.html" --pattern-exclude="exclude-dir/*"
+     * 
+     * Extract files from bigpack to another bigpack:
+     *   cd my-archive
+     *   mkdir new-archive
+     *   cd new-archive
+     *   bigpack init --bare
+     *   bigpack addFromArchive --archive-dir=.. --pattern="*.jpg,*.jpeg,*.png,*.html" --pattern-exclude="exclude-dir/*"
      * 
      */
     static function addFromArchive(array $opts) {

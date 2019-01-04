@@ -67,7 +67,7 @@ class Core {
     CONST MAPH  = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn - not used, not needed
     CONST OPTIONS  = 'BigPack.options'; // key=value file, php.ini format
 
-    CONST VERSION = '1.0.3'; // semver
+    CONST VERSION = '1.0.4'; // semver
 
     // Signals
     static $STOP_SIGNAL = 0; // kill -SIGINT / -SIGTERM $PID
@@ -79,10 +79,10 @@ class Core {
      * @return items as [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
      * @param patterns - comma separated list of patterns
      */
-    static function indexReader(string $patterns = "") : \Generator {
-        return (new _BigPack("."))->indexReader($patterns ? explode(",", $patterns) : []);
+    static function indexReader(array $opts = []) : \Generator {
+        return (new _BigPack("."))->indexReader(self::_patternFilter($opts));
     }
-
+    
     // stateless function must be declared as static
     static function hash(string $data) : string { # 10 byte hash
         $md5 = hash("md5", $data, 1);
@@ -110,6 +110,49 @@ class Core {
         }
         return [$data, $dh, $flag];
     }
+
+    /**
+     * create Index File pattern filter closure from $opts
+     * to be used in (new _BigPack)->indexReader($filter)
+     * 
+     * If pattern(s) specified: all non matching files excluded
+     * No pattern(s) specified: no files excluded 
+     * If exclude-patterns specified: all matching files excluded
+     * exclude-patterns applied after patterns
+     * 
+     * so:
+     *  pattern="dir1/*,dir2/*" --exclude-pattern="*.tmp,*.bak"  will pass all files in dir1, dir2 with an exception for "tmp" and "bak" files
+     * 
+     */
+    static function _patternFilter(array $opts) : ?\Closure { 
+        $includePattern = ($t = @$opts['pattern']) ? explode(",", $t) : [];
+        $excludePattern = ($t = @$opts['pattern-exclude']) ? explode(",", $t) : [];
+        if (! $includePattern && ! $excludePattern)
+            return null;
+        @$opts["vv"] && printf("include-pattern: %s\nexclude-pattern: %s\n", json_encode($includePattern),  json_encode($excludePattern));
+        return function(array $d) use ($includePattern, $excludePattern) : bool {  # true = use file, false = skip file
+            $filename = $d[0];
+            if ($includePattern) {
+                $r = false;
+                foreach ($includePattern as $p) {
+                    if (\fnmatch($p, $filename)) {
+                        $r = true;
+                        break;
+                    }
+                }
+                if (! $r)
+                    return false;
+            }
+            if ($excludePattern) {
+                foreach ($excludePattern as $p) {
+                    if (\fnmatch($p, $filename))
+                        return false;
+                }
+            }
+            return true;
+        };
+    }
+
 
     /**
      * create directories structure (ala mkdir -p) needed to extract file $file
@@ -391,23 +434,28 @@ class Packer {
      * Add files from another archive to current archive
      * --archive-dir
      * --pattern="pattern1,pattern2,...."   << comma delimited
+     * --pattern-exclude="pattern1,pattern2,...."   << comma delimited
      * --all
      */
     function addFromArchive() : int {
         if (! @$this->opts['archive-dir'])
             Util::error("Specify --archive-dir");
-        $pattern = (string) @$this->opts['pattern'];
-        if (! $pattern && ! @$this->opts['all'])
-            Util::error("specify --pattern=\"comma-delimited-list-of-patterns\" or --all");
+        if (! @$this->opts['pattern'] && ! @$this->opts['pattern-exclude'] && ! @$this->opts['all'])
+            Util::error("specify one of :\n
+                --all
+                --pattern=\"comma-delimited-list-of-patterns\"
+                --pattern-exclude=\"comma-delimited-list-of-patterns\"
+                ");
         $from_archive = new _BigPack($this->opts['archive-dir']);
-        foreach (Core::indexReader($pattern) as $d) {
+        foreach (Core::indexReader() as $d) {
             // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
             $this->KNOWN_FILE[$d[1]] = $d[4];
             $this->DATAHASH_OFFSET[$d[2]] = $d[6];
         }
         $this->_packInit();            
         $offset = filesize(Core::DATA);
-        foreach ($from_archive->indexReader() as $line) {
+        $fromIndexReader = $from_archive->indexReader(Core::_patternFilter($this->opts));
+        foreach ($fromIndexReader as $line) {
             [$file, $filename_hash, $data_hash, $mode, $file_mtime, $added_time, $file_offset] = $line;
             if (@$this->KNOWN_FILE[$filename_hash]) {
                 @$this->stat['known-files']++;
@@ -667,7 +715,7 @@ class Extractor {
         $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
         $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
         if (! $files)
-            Util::error("no files to extract, specify list of files or '--all'");
+            Util::error("no files to extract: specify list of files, '--all', --pattern='comma-delimited-list-of-patterns'");
         // ------------------------
         $fh2file = [];  // filehash => $filename
         $fh2d = []; // filehash => $index-line
@@ -686,7 +734,7 @@ class Extractor {
 
     //  --pattern="*" @see php fnmatch
     function extractAll() {
-        foreach (Core::indexReader("".@$this->opts['pattern']) as $d) {
+        foreach (Core::indexReader($this->opts) as $d) {
             $this->_extract($d);
         }
     }
@@ -749,21 +797,24 @@ class Extractor {
     // Options:
     //  --name-only
     //  --raw
+    //  --pattern
+    //  --pattern-exclude
     function list() {
         if (@$this->opts['raw']) {
             echo shell_exec("cat BigPack.index | column -t");
             echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
             return;
         }
-        //
-        $wildcard = "".@$this->opts[2];
+        if ($p = @$this->opts[2])
+            $this->opts["pattern"] = $p;
+        $index = Core::indexReader($this->opts);
         if (@$this->opts['name-only']) {
-            foreach (Core::indexReader($wildcard) as $d)
+            foreach ($index as $d)
                 echo $d[0], "\n";
             return;
         }
         // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
-        foreach (Core::indexReader($wildcard) as $d) {
+        foreach ($index as $d) {
             $d[1] = bin2hex($d[1]);
             $d[2] = bin2hex($d[2]);
             $d[3] = base_convert($d[3], 10, 8);
@@ -986,25 +1037,16 @@ class _BigPack {
      * @param $patterns : [] = no filters | list of fnmatch expressions
      * @return Lines of Index File [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
      */
-    function indexReader(array $patterns = []) : \Generator {
+    function indexReader(?\Closure $filter = null) : \Generator {
         if (! file_exists($this->dir.Core::INDEX))
             Util::error("Bigpack index not found in $this->dir");        
         $fh_index = fopen($this->dir.Core::INDEX, "r");
         while (($L = stream_get_line($fh_index, 1024 * 1024, "\n")) !== false) {
             if ($L{0} === '#')
-            continue;
-            $d = explode("\t", $L);
-            if ($patterns) {
-                $ok = 0;
-                foreach ($patterns as $p) {
-                    if (fnmatch($p, $d[0])) {
-                        $ok = 1;
-                        break;
-                    }
-                }
-                if (! $ok)
                 continue;
-            }
+            $d = explode("\t", $L);
+            if ($filter && ! $filter($d))
+                continue;
             $d[1] = hex2bin($d[1]);  // FileNameHash
             $d[2] = hex2bin($d[2]);  // DataHash
             $d[3] = (int) base_convert($d[3], 8, 10); // File Permissions
