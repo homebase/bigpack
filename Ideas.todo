@@ -1,15 +1,6 @@
 # Ideas / ToDo
 #   Sublime Edit PlainTasks Formatted
 
- ☐ Auto Detect mime-type (~ /etc/magic) - unknown mime type case
-       Auto-Detect Images: (gif,png,jpeg,.....)
-       $data       = file_get_contents($img);
-       $data = substr($data, 0, 4096);
-       $info = getimagesizefromstring($data);
-       $mime = $info['mime'];
-       echo "MIME TYPE IS: ".$mime."\n";
-       see also: http://php.net/manual/en/function.exif-imagetype.php
-
  ☐ BigPack and Directories
    BigPack.index: stored directories should ends with "/"
    extract should change permissions for existing, create new ones on extract
@@ -18,9 +9,16 @@
    "incrorrectly created" file lists adds direcrtories as files
    BigPack.index: stored directories should ends with "/"
 
-
 ＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿＿
 Archive:
+ ✔ Auto Detect mime-type (~ /etc/magic) - unknown mime type case @done (19-01-04 12:42)
+  Auto-Detect Images: (gif,png,jpeg,.....)
+  $data       = file_get_contents($img);
+  $data = substr($data, 0, 4096);
+  $info = getimagesizefromstring($data);
+  $mime = $info['mime'];
+  echo "MIME TYPE IS: ".$mime."\n";
+  see also: http://php.net/manual/en/function.exif-imagetype.php
  ✔ BigPack merge @done (19-01-03 15:40)
   bigpack merge --merge-dir="path"
  ✔ BigPack addFromArchive @done (19-01-03 15:40)
