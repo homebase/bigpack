@@ -43,7 +43,7 @@
 // HB = homebase framework namespace
 namespace hb\bigpack;
 
-declare(ticks = 1);
+declare (ticks = 1);
 
 use hb\util\CliTool;
 use hb\util\Util;
@@ -51,23 +51,24 @@ use hb\util\Util;
 /**
  * Common methods
  */
-class Core {
+class Core
+{
 
     // bitmap flags
-    CONST FLAG_GZIP    = 1;
-    CONST FLAG_DELETED = 2;
+    const FLAG_GZIP = 1;
+    const FLAG_DELETED = 2;
 
-    CONST DATA_PREFIX = 16; // bytes
+    const DATA_PREFIX = 16; // bytes
 
     // filenames
-    CONST INDEX = 'BigPack.index';
-    CONST DATA  = 'BigPack.data';
-    CONST MAP   = 'BigPack.map';
-    CONST MAP2  = 'BigPack.map2';
-    CONST MAPH  = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn - not used, not needed
-    CONST OPTIONS  = 'BigPack.options'; // key=value file, php.ini format
+    const INDEX = 'BigPack.index';
+    const DATA = 'BigPack.data';
+    const MAP = 'BigPack.map';
+    const MAP2 = 'BigPack.map2';
+    const MAPH = 'BigPack.maph'; // map hash. top-16bit of filenamehash => map-item-nn - not used, not needed
+    const OPTIONS = 'BigPack.options'; // key=value file, php.ini format
 
-    CONST VERSION = '1.0.4'; // semver
+    const VERSION = '1.0.4'; // semver
 
     // Signals
     static $STOP_SIGNAL = 0; // kill -SIGINT / -SIGTERM $PID
@@ -79,12 +80,14 @@ class Core {
      * @return items as [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
      * @param patterns - comma separated list of patterns
      */
-    static function indexReader(array $opts = []) : \Generator {
+    static function indexReader(array $opts = []) : \Generator
+    {
         return (new _BigPack("."))->indexReader(self::_patternFilter($opts));
     }
     
     // stateless function must be declared as static
-    static function hash(string $data) : string { # 10 byte hash
+    static function hash(string $data) : string
+    { # 10 byte hash
         $md5 = hash("md5", $data, 1);
         return substr($md5, 0, 10);
     }
@@ -96,7 +99,8 @@ class Core {
      * - support is-deleted
      * @see Packer::_write for a writer
      */
-    static function _readOffset(int $offset, $raw = false) : array { # [data, data-hash, $flag]
+    static function _readOffset(int $offset, $raw = false) : array
+    { # [data, data-hash, $flag]
         $fh = fopen(Core::DATA, "rb");
         [$data, $dh, $flag] = _BigPack::__readOffset($fh, $offset);
         fclose($fh);
@@ -104,7 +108,7 @@ class Core {
             return ["", "", $flag]; // File Deleted
         if ($raw)
             return [$data, $dh, $flag];
-        if (! $raw && ($flag & Core::FLAG_GZIP)) {
+        if (!$raw && ($flag & Core::FLAG_GZIP)) {
             $data = gzinflate($data);
             $flag ^= Core::FLAG_GZIP; // gzip no more
         }
@@ -124,13 +128,14 @@ class Core {
      *  pattern="dir1/*,dir2/*" --exclude-pattern="*.tmp,*.bak"  will pass all files in dir1, dir2 with an exception for "tmp" and "bak" files
      * 
      */
-    static function _patternFilter(array $opts) : ?\Closure { 
+    static function _patternFilter(array $opts) : ? \Closure
+    {
         $includePattern = ($t = @$opts['pattern']) ? explode(",", $t) : [];
         $excludePattern = ($t = @$opts['pattern-exclude']) ? explode(",", $t) : [];
-        if (! $includePattern && ! $excludePattern)
+        if (!$includePattern && !$excludePattern)
             return null;
-        @$opts["vv"] && printf("include-pattern: %s\nexclude-pattern: %s\n", json_encode($includePattern),  json_encode($excludePattern));
-        return function(array $d) use ($includePattern, $excludePattern) : bool {  # true = use file, false = skip file
+        @$opts["vv"] && printf("include-pattern: %s\nexclude-pattern: %s\n", json_encode($includePattern), json_encode($excludePattern));
+        return function (array $d) use ($includePattern, $excludePattern) : bool {  # true = use file, false = skip file
             $filename = $d[0];
             if ($includePattern) {
                 $r = false;
@@ -140,7 +145,7 @@ class Core {
                         break;
                     }
                 }
-                if (! $r)
+                if (!$r)
                     return false;
             }
             if ($excludePattern) {
@@ -158,7 +163,8 @@ class Core {
      * create directories structure (ala mkdir -p) needed to extract file $file
      * keeps track of existing directories
      */
-    static function _makeDirs(string $file) {
+    static function _makeDirs(string $file)
+    {
         static $dir_exists = []; // dir => 1
         $path = substr($file, 0, strrpos($file, '/'));
         if (@$dir_exists[$path])
@@ -172,27 +178,31 @@ class Core {
         #die("$file => $path");
     }
 
-    static function _SIGINT() {
+    static function _SIGINT()
+    {
         echo "INT\n";
         self::$STOP_SIGNAL = "INT";
     }
 
-    static function _SIGTERM() {
+    static function _SIGTERM()
+    {
         echo "TERM\n";
         self::$STOP_SIGNAL = "TERM";
     }
 
-    static function _SIGHUP() {
+    static function _SIGHUP()
+    {
         echo "HUP\n";
         self::$RELOAD_SIGNAL = "HUP";
     }
 
 }
 
-class Packer {
+class Packer
+{
 
-    static $WRITE_BUFFER_FILES   = 10000;        // NN files to keep in write buffer
-    static $WRITE_BUFFER_SIZE    = 100 << 20;     // size in MB
+    static $WRITE_BUFFER_FILES = 10000;        // NN files to keep in write buffer
+    static $WRITE_BUFFER_SIZE = 100 << 20;     // size in MB
     static $skip_gzip_default = "gz bz2 tgz xz jpg jpeg gif png webp zip 7z rar";
 
     // never add this files to BigPack archive
@@ -209,18 +219,19 @@ class Packer {
     public $KNOWN_FILE = [];  // hash(file) => { 1 || last-modified-time } - includes Default Excludes (initialized in __construct)
 
     // file handles
-    private  $fh_index;
-    private  $fh_data;
-    
-    public  $skip_gzip; // extension => 1
+    private $fh_index;
+    private $fh_data;
 
-    function __construct(array $opts) {
+    public $skip_gzip; // extension => 1
+
+    function __construct(array $opts)
+    {
         $this->opts = $opts;
         $this->now = time();
         $this->dir = $this->opts["dir"] ?? "."; // "--dir=xxx" or current dir
         $this->opts["gzip"] = $this->opts["gzip"] ?? 1; // Default GZIP is ON
         $skip_gzip = $opts['skip-gzip'] ?? self::$skip_gzip_default; // space delimited list of extensions
-        $this->skip_gzip = array_flip(explode(" ", ' '.$skip_gzip)); // ext => 1
+        $this->skip_gzip = array_flip(explode(" ", ' ' . $skip_gzip)); // ext => 1
         unset($this->skip_gzip[""]);
         foreach (self::$EXCLUDE_FILES as $f => $x)
             $this->KNOWN_FILE[Core::hash($f)] = 1;
@@ -229,22 +240,23 @@ class Packer {
                 self::$EXCLUDE_FILES[$file] = 1;
         }
         if (@$args['vv'])  // -vv = very-verbose
-            echo json_encode(['options' => $args, 'skip-gzip' => $this->skip_gzip]), "\n";
+        echo json_encode(['options' => $args, 'skip-gzip' => $this->skip_gzip]), "\n";
     }
 
     /**
      * Generator - scan files in directory
      * returns filename and its hash
      */
-    function fileScanner() { # Generator that yields [fileName, filenameHash]
+    function fileScanner()
+    { # Generator that yields [fileName, filenameHash]
         // skip BigData Archive Files
-        $fileCallback = function($dir, $file) {
+        $fileCallback = function ($dir, $file) {
             if (@Packer::$EXCLUDE_FILES[$file])
                 return 1;
         };
         // skip directories with BigData Archives
-        $dirEntryCallback = function($dir, $file) {
-            if (file_exists("$dir/$file/".Core::INDEX))
+        $dirEntryCallback = function ($dir, $file) {
+            if (file_exists("$dir/$file/" . Core::INDEX))
                 return 1;
         };
         foreach (Util::fileScanner($this->dir, "", $fileCallback, $dirEntryCallback) as $fp) {
@@ -257,7 +269,8 @@ class Packer {
      * Generator - scan NEW (unknown) files
      * returns filename and its hash
      */
-    function newFileScanner() { # Generator that yields fileName
+    function newFileScanner()
+    { # Generator that yields fileName
         foreach ($this->fileScanner() as [$file, $filename_hash]) {
             if (@$this->KNOWN_FILE[$filename_hash]) {
                 @$this->stat['known-files']++;
@@ -272,10 +285,11 @@ class Packer {
      * Generator - scan KNOWN Changed Files
      * returns filename and its hash
      */
-    function changedFileScanner() { # Generator that yields fileName
+    function changedFileScanner()
+    { # Generator that yields fileName
         foreach ($this->fileScanner() as [$file, $filename_hash]) {
             $lmd = @$this->KNOWN_FILE[$filename_hash]; // last-modified-date
-            if (! $lmd) {
+            if (!$lmd) {
                 @$this->stat['new-files-skip']++;
                 continue;
             }
@@ -292,28 +306,30 @@ class Packer {
      * Prepare Archive for Adding new Files
      * Reset Statistics
      */
-    protected function _packInit() : void {
+    protected function _packInit() : void
+    {
         $pid = getmypid();
         echo "Starting Packer. Use ^C or \"kill $pid\" to safe-stop process\n";
         $this->fh_index = Util::openLock(Core::INDEX);
-        $this->fh_data  = Util::openLock(Core::DATA);
+        $this->fh_data = Util::openLock(Core::DATA);
         stream_set_write_buffer($this->fh_index, 1 << 16);
         stream_set_write_buffer($this->fh_data, 1 << 20);
         $this->stat['files'] = 0;
         $this->stat['file-size'] = 0;
         $this->stat['started'] = time();
     }
-    
+
     /**
      * Flush buffers
      * Close Archive
      * return NN-files-Added
      */
-    protected function _packFinish() : int {
+    protected function _packFinish() : int
+    {
         $this->_flush(); // flush write buffer, remove archived files (if --rm)
         fclose($this->fh_data);
         fclose($this->fh_index);
-        echo "\nDONE. ".@$this->stat['files']." files added\n";
+        echo "\nDONE. " . @$this->stat['files'] . " files added\n";
         return $this->stat['files'];
     }
 
@@ -321,14 +337,15 @@ class Packer {
     /**
      *  Add ALL NEW Files to existing  archive
      */
-    function add() : int { # NN files-added
+    function add() : int
+    { # NN files-added
         foreach (Core::indexReader() as $d) {
             // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
             $this->KNOWN_FILE[$d[1]] = $d[4];
             $this->DATAHASH_OFFSET[$d[2]] = $d[6];
         }
         if (@$this->opts['replace']) // replace ALL files
-            $this->KNOWN_FILE = [];
+        $this->KNOWN_FILE = [];
         $offset = filesize(Core::DATA);
         return $this->pack($this->newFileScanner(), $offset);
     }
@@ -339,7 +356,8 @@ class Packer {
      * Will not remove OLD file Content from Archives !!
      * Will not add unknown files
      */
-    function updateChanged() : int { # NN files-added
+    function updateChanged() : int
+    { # NN files-added
         foreach (Core::indexReader() as $d) {
             // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
             $this->KNOWN_FILE[$d[1]] = $d[4];
@@ -356,7 +374,8 @@ class Packer {
      *   --recreate
      *   --bare
      */
-    function init() : int { # NN files-added
+    function init() : int
+    { # NN files-added
         if (file_exists(Core::INDEX)) {
             if (@$this->opts['recreate']) {
                 unlink(Core::INDEX);
@@ -364,13 +383,13 @@ class Packer {
                 @unlink(Core::MAP);
                 @unlink(Core::MAP2);
             } else {
-                Util::error("BigPack files already exists - refusing to run\n".
-                    "use --recreate to *REMOVE OLD* archive (all archived files will be LOST), and build new one\n".
+                Util::error("BigPack files already exists - refusing to run\n" .
+                    "use --recreate to *REMOVE OLD* archive (all archived files will be LOST), and build new one\n" .
                     "Use 'bigpack add' to add new files");
             }
         }
-        $archive_info = "BigPack".Core::VERSION." ".gmdate("Ymd His")." ".\get_current_user()."@".\gethostname();
-        $this->_write("", join("\t", ["#FileName", "FilenameHash", "DataHash", "FilePerms", "FileMTime", "AddedTime", "DataOffset"])."\n", $archive_info);
+        $archive_info = "BigPack" . Core::VERSION . " " . gmdate("Ymd His") . " " . \get_current_user() . "@" . \gethostname();
+        $this->_write("", join("\t", ["#FileName", "FilenameHash", "DataHash", "FilePerms", "FileMTime", "AddedTime", "DataOffset"]) . "\n", $archive_info);
         $offset = strlen($archive_info);
         if (@$this->opts['bare'])
             return $this->pack([], $offset);
@@ -382,11 +401,12 @@ class Packer {
      * Create/Add Archive from pre-generated filelist
      * generate filelist with: bigpack generateFileList
      */
-    function addFromFileList() : int {
+    function addFromFileList() : int
+    {
         static $filelist = "filelist.bigpack.gz";
-        if (! file_exists($filelist))
+        if (!file_exists($filelist))
             Util::error("no $filelist file found, generate one with bigpack generateFileList");
-        if (! file_exists(Core::INDEX)) {
+        if (!file_exists(Core::INDEX)) {
             echo "Creating Archive\n";
             $this->opts['bare'] = 1;
             $this->init();
@@ -396,7 +416,7 @@ class Packer {
             // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
             $this->KNOWN_FILE[$d[1]] = $d[4];
             $this->DATAHASH_OFFSET[$d[2]] = $d[6];
-        }        
+        }
         $this->KNOWN_FILE[Core::hash($filelist)] = 1; // ignore file-list
         $offset = filesize(Core::DATA);
         $this->_packInit();
@@ -404,8 +424,10 @@ class Packer {
             $l = @explode("\t", $line);
             [$file, $mode, $file_mtime] = $l;
             $dataSourceFile = $l[3] ?? $file;
-            if ($file{0}.@$file{1} === './') // cut useless "./" prefix
-                $file = substr($file, 2);
+            if ($file {
+                0} . @$file {
+                1} === './') // cut useless "./" prefix
+            $file = substr($file, 2);
             $filename_hash = Core::hash($file);
             if (@$this->KNOWN_FILE[$filename_hash]) {
                 @$this->stat['known-files']++;
@@ -415,8 +437,8 @@ class Packer {
             $data_hash = Core::hash($data);
             $flags = 0; // bit field
             $mode = base_convert("$mode", 8, 10);
-            $mode = (int) ($mode & 511);
-            $file_mtime = (int) $file_mtime;
+            $mode = (int)($mode & 511);
+            $file_mtime = (int)$file_mtime;
             if (@$this->opts['gzip'])
                 [$data, $flags] = $this->_compress($file, $flags, $data);
             $offset += $this->write($file, $filename_hash, $data_hash, $mode, $file_mtime, $offset, $flags, $data);
@@ -437,10 +459,11 @@ class Packer {
      * --pattern-exclude="pattern1,pattern2,...."   << comma delimited
      * --all
      */
-    function addFromArchive() : int {
-        if (! @$this->opts['archive-dir'])
+    function addFromArchive() : int
+    {
+        if (!@$this->opts['archive-dir'])
             Util::error("Specify --archive-dir");
-        if (! @$this->opts['pattern'] && ! @$this->opts['pattern-exclude'] && ! @$this->opts['all'])
+        if (!@$this->opts['pattern'] && !@$this->opts['pattern-exclude'] && !@$this->opts['all'])
             Util::error("specify one of :\n
                 --all
                 --pattern=\"comma-delimited-list-of-patterns\"
@@ -452,7 +475,7 @@ class Packer {
             $this->KNOWN_FILE[$d[1]] = $d[4];
             $this->DATAHASH_OFFSET[$d[2]] = $d[6];
         }
-        $this->_packInit();            
+        $this->_packInit();
         $offset = filesize(Core::DATA);
         $fromIndexReader = $from_archive->indexReader(Core::_patternFilter($this->opts));
         foreach ($fromIndexReader as $line) {
@@ -460,7 +483,7 @@ class Packer {
             if (@$this->KNOWN_FILE[$filename_hash]) {
                 @$this->stat['known-files']++;
                 continue;
-            }            
+            }
             [$data, $archive_data_hash, $flags] = $from_archive->_ReadOffset($file_offset);
             if ($archive_data_hash != $data_hash) {
                 $this->_packFinish();
@@ -480,7 +503,8 @@ class Packer {
      * read files from scanner, pack them into archive
      * --gzip - use gzip on data (default=yes)
      */
-    function pack($scanner, $offset) : int { # NN files-added
+    function pack($scanner, $offset) : int
+    { # NN files-added
         $this->_packInit();
         foreach ($scanner as [$file, $filename_hash]) {
             $data = file_get_contents($file);
@@ -506,9 +530,10 @@ class Packer {
      * - require at least 5% compression
      * - no compression for files less than 1024 bytes
      */
-    function _compress(string $file, $flags, string $data) {
+    function _compress(string $file, $flags, string $data)
+    {
         if ($ext_p = strrpos($file, '.')) {
-            $ext = substr($file, $ext_p+1);
+            $ext = substr($file, $ext_p + 1);
             if (@$this->skip_gzip[$ext]) {
                 @$this->stat['files-compression-disallowed']++;
                 return [$data, $flags]; // no compression for specific extensions
@@ -520,12 +545,12 @@ class Packer {
             return [$data, $flags]; // no compression for small files
         }
         $compressed_data = gzdeflate($data);
-        if (strlen($compressed_data) > $len*0.95) { // 5% compression required
+        if (strlen($compressed_data) > $len * 0.95) { // 5% compression required
             @$this->stat['files-non-compressed']++;
             return [$data, $flags]; // no compression if compression is bad
         }
         @$this->stat['files-compressed']++;
-        return  [$compressed_data, $flags | Core::FLAG_GZIP];
+        return [$compressed_data, $flags | Core::FLAG_GZIP];
     }
 
     /**
@@ -540,13 +565,14 @@ class Packer {
      *   "dedup-size"   - total size of all Dedup files
      * @return: (int) bytes-written
      */
-    function write($file, $filename_hash, $data_hash, $mode, $file_mtime, $offset, $flags, $data) : int {  # written data size
+    function write($file, $filename_hash, $data_hash, $mode, $file_mtime, $offset, $flags, $data) : int
+    {  # written data size
         $len = strlen($data);
         if ($_offset = $this->DATAHASH_OFFSET[$data_hash] ?? 0) { // reusing already saved content
             $offset = $_offset;
             $data = false;
         }
-        $index = join("\t", [$file, bin2hex($filename_hash), bin2hex($data_hash), sprintf("%o", $mode), $file_mtime, $this->now, $offset])."\n";
+        $index = join("\t", [$file, bin2hex($filename_hash), bin2hex($data_hash), sprintf("%o", $mode), $file_mtime, $this->now, $offset]) . "\n";
         @$this->opts['vv'] && print("$file($len) -> $offset\n");  // debug
         @$this->stat['files']++;
         @$this->stat['files-size'] += $len;
@@ -558,14 +584,15 @@ class Packer {
         }
         // uint32 size, byte(size_high_byte) byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
         $len_byte9 = $len >> 32;
-        $w_data = pack("Lca10c", $len, $len_byte9, $data_hash, $flags).$data;
+        $w_data = pack("Lca10c", $len, $len_byte9, $data_hash, $flags) . $data;
         $this->_write($file, $index, $w_data);
         $this->DATAHASH_OFFSET[$data_hash] = $offset;
         return Core::DATA_PREFIX + $len; // prefix(10 + 4 + 1) + data-len
     }
 
     // flush write buffer
-    function _flush() {
+    function _flush()
+    {
         $this->_write("", "", true); // flush
     }
 
@@ -573,7 +600,8 @@ class Packer {
      *  use $data === true to flush buffer
      *  use $data === false to skip data-file write, write index only
      */
-    function _write(string $file, string $index, $data) {
+    function _write(string $file, string $index, $data)
+    {
         static $files = []; // source files
         static $index_buffer = [];
         static $data_buffer = [];
@@ -591,7 +619,7 @@ class Packer {
         }
 
         if ($data === true) // FLUSH
-            $count = static::$WRITE_BUFFER_FILES; // force write
+        $count = static::$WRITE_BUFFER_FILES; // force write
 
         if ($count < static::$WRITE_BUFFER_FILES && $size < static::$WRITE_BUFFER_SIZE) {
             return;
@@ -618,7 +646,7 @@ class Packer {
         $data_buffer = [];
         $files = [];
         $count = 0;
-        $size  = 0;
+        $size = 0;
     }
 
     /**
@@ -628,17 +656,18 @@ class Packer {
      *  -v to see files being removed
      *  --force - ignore file-modification-time difference
      */
-    function removeArchived() {
+    function removeArchived()
+    {
         // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
         foreach (Core::indexReader() as $d) {
             $file = $d[0];
-            if (! file_exists($file))
+            if (!file_exists($file))
                 continue;
             $file_mtime = filemtime($file);
             if (@$this->opts['force'])
-                $file_mtime = (int) $d[4];
-            if ((int) $file_mtime === (int) $d[4]) {
-                @$this->opts['v']  && print("removing $file\n");
+                $file_mtime = (int)$d[4];
+            if ((int)$file_mtime === (int)$d[4]) {
+                @$this->opts['v'] && print("removing $file\n");
                 unlink($file);
                 @$this->stat['files-removed']++;
             } else {
@@ -655,16 +684,20 @@ class Packer {
      *
      * --undelete - remove is-deleted flag
      */
-    function deleteContent() {
-        $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
+    function deleteContent()
+    {
+        $f = function ($v, $k) {
+            if ($k && is_int($k) && $k > 1) return $v;
+        };
         $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
-        if (! $files)
+        if (!$files)
             Util::error("no files given, specify list of files");
         foreach ($files as $f)
             $this->_deleteContent($f);
     }
 
-    function _deleteContent(string $file) {
+    function _deleteContent(string $file)
+    {
         #die("TODO");
         $fh = Core::hash($file);
         $offset = (new ExtractorMap2([]))->_offset($fh);
@@ -674,16 +707,16 @@ class Packer {
             Util::error("File $file extract error"); // && die
         // uint32 size, byte(size_high_byte) byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
         // FLAGS is last BYTE of DATA
-        $fh_data  = Util::openLock(Core::DATA, "r+b");
+        $fh_data = Util::openLock(Core::DATA, "r+b");
         fseek($fh_data, $offset + 15);
         $flags = ord(fread($fh_data, 1));
         // var_dump([$file, $offset]);
         //$flags = unpack("Cd", $flags_s)['d'];
-        echo "Current Delete Flag: ", (bool) ($flags & Core::FLAG_DELETED),"\n";
+        echo "Current Delete Flag: ", (bool)($flags & Core::FLAG_DELETED), "\n";
         $flags |= Core::FLAG_DELETED;
         if (@$this->opts['undelete'])
             $flags ^= Core::FLAG_DELETED;
-        echo "New Delete Flag: ", (bool) ($flags & Core::FLAG_DELETED),"\n";
+        echo "New Delete Flag: ", (bool)($flags & Core::FLAG_DELETED), "\n";
         fseek($fh_data, $offset + 15);
         fwrite($fh_data, chr($flags), 1);
         fclose($fh_data);
@@ -694,27 +727,32 @@ class Packer {
 /**
  * Index-File Based Extractor
  */
-class Extractor {
+class Extractor
+{
 
     // public
     var $opts = []; // options from BigPack.options and Cli
 
-    function __construct(array $opts) {
+    function __construct(array $opts)
+    {
         $this->opts = $opts;
     }
 
     // extract one or more files
     // --cat = dump file to stdout
     // --pattern="dir/*/??.html,*.jpg,*.gif" @see php fnmatch
-    function extract() {
+    function extract()
+    {
         // processing CLI options
         if (@$this->opts['all'] || @$this->opts['pattern'])
             return $this->extractAll();
         if (@$this->opts['data-hash'])
             return $this->extractHash($this->opts[2], $this->opts['data-hash']);  // extract filename --data-hash=....
-        $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
+        $f = function ($v, $k) {
+            if ($k && is_int($k) && $k > 1) return $v;
+        };
         $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
-        if (! $files)
+        if (!$files)
             Util::error("no files to extract: specify list of files, '--all', --pattern='comma-delimited-list-of-patterns'");
         // ------------------------
         $fh2file = [];  // filehash => $filename
@@ -733,7 +771,8 @@ class Extractor {
     }
 
     //  --pattern="*" @see php fnmatch
-    function extractAll() {
+    function extractAll()
+    {
         foreach (Core::indexReader($this->opts) as $d) {
             $this->_extract($d);
         }
@@ -741,13 +780,14 @@ class Extractor {
 
     // extract specific version of specific file
     // bigpack extract Filename --data-hash=....
-    function extractHash(string $file, string $data_hash_hex) {
-        if (! $file)
+    function extractHash(string $file, string $data_hash_hex)
+    {
+        if (!$file)
             Util::error("specify filename");
         $fh = Core::hash($file);
-        if (! $data_hash_hex)
+        if (!$data_hash_hex)
             Util::error("specify data-hash");
-        $dh   = hex2bin($data_hash_hex);
+        $dh = hex2bin($data_hash_hex);
         foreach (Core::indexReader() as $d) {
             if ($d[1] === $fh && $d[2] === $dh) {
                 $this->_extract($d);
@@ -759,20 +799,21 @@ class Extractor {
 
     // Extract specific file
     // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
-    function _extract(array $d) {
+    function _extract(array $d)
+    {
         // var_dump(['extract', $d]);
         [$file, $filename_hash, $data_hash, $mode, $file_mtime, $added_time, $offset] = $d;
         // var_dump(["offset" => $offset]);
-        [$data, $dh] = Core::_readOffset((int) $offset);
-        @$this->opts['vv'] && print("file: $file dh: ".bin2hex($data_hash)."\n");  // debug
+        [$data, $dh] = Core::_readOffset((int)$offset);
+        @$this->opts['vv'] && print("file: $file dh: " . bin2hex($data_hash) . "\n");  // debug
         // var_dump(["file" => $file, "data" => $data]);
-        if (! $data && ! $dh)
+        if (!$data && !$dh)
             Util::error("File $file deleted, aborting");
         if ($dh !== $data_hash) {
-            $error = "File: $file data hash mismatch expected: ".bin2hex($data_hash)." got: ".bin2hex($dh)." read-data-size: ".strlen($data)." use --allow-mismatch to bypass broken files";
-            echo "take 2 on hash:".bin2hex(Core::hash($data))."\n";
+            $error = "File: $file data hash mismatch expected: " . bin2hex($data_hash) . " got: " . bin2hex($dh) . " read-data-size: " . strlen($data) . " use --allow-mismatch to bypass broken files";
+            echo "take 2 on hash:" . bin2hex(Core::hash($data)) . "\n";
             if ($this->opts['allow-mismatch'])
-                fwrite(STDERR, $error."\n");
+                fwrite(STDERR, $error . "\n");
             else
                 Util::error($error); // && DIE !
         }
@@ -782,7 +823,7 @@ class Extractor {
         }
         if (strpos($file, '/'))
             Core::_makeDirs($file);
-        if (file_exists($file) && ! @$this->opts['overwrite'])
+        if (file_exists($file) && !@$this->opts['overwrite'])
             Util::error("Error: file $file already exists, specify --overwrite to overwrite");
         $r = file_put_contents($file, $data);
         if ($r === false) {
@@ -799,10 +840,11 @@ class Extractor {
     //  --raw
     //  --pattern
     //  --pattern-exclude
-    function list() {
+    function list()
+    {
         if (@$this->opts['raw']) {
             echo shell_exec("cat BigPack.index | column -t");
-            echo "Files in archive: ", number_format( (int) shell_exec("cat BigPack.index | wc -l") ), "\n";
+            echo "Files in archive: ", number_format((int)shell_exec("cat BigPack.index | wc -l")), "\n";
             return;
         }
         if ($p = @$this->opts[2])
@@ -840,31 +882,37 @@ class Extractor {
  *
  * Debug: view MAP file: xxd -c 16  BigPack.map
  */
-class ExtractorMap {
+class ExtractorMap
+{
 
      // public
     var $opts = []; // options from BigPack.options and Cli
     var $map = "";   // sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records
     var $map_cnt = 0;   // count
 
-    function __construct(array $opts) {
+    function __construct(array $opts)
+    {
         $this->opts = $opts;
         $this->init();
     }
 
-    function init() {
+    function init()
+    {
         $this->map = file_get_contents(Core::MAP);
         $this->map_cnt = strlen($this->map) >> 4;
     }
 
-    function extract() {
-        $f = function ($v, $k) { if ($k && is_int($k) && $k > 1) return $v; };
+    function extract()
+    {
+        $f = function ($v, $k) {
+            if ($k && is_int($k) && $k > 1) return $v;
+        };
         $files = array_filter($this->opts, $f, ARRAY_FILTER_USE_BOTH);
-        if (! $files)
+        if (!$files)
             Util::error("no files to extract, specify list of files or '--all'");
         $cnt = 0;
         foreach ($files as $file) {
-            if (file_exists($file) && ! @$this->opts['overwrite'])
+            if (file_exists($file) && !@$this->opts['overwrite'])
                 Util::error("Error: file $file already exists, specify --overwrite to overwrite");
             $this->_extract($file);
             $cnt++;
@@ -875,15 +923,16 @@ class ExtractorMap {
     /**
      * extract file via filehash
      */
-    function _extract(string $file) {
+    function _extract(string $file)
+    {
         $fh = Core::hash($file);
         $offset = $this->_offset($fh);
         if ($offset === 0)
             Util::error("No such file $file in archive, aborting"); // && die
         if ($offset === 1)
             Util::error("File $file extract error"); // && die
-        [$data, $dh] = Core::_readOffset((int) $offset);
-        if (! $data && ! $dh)
+        [$data, $dh] = Core::_readOffset((int)$offset);
+        if (!$data && !$dh)
             Util::error("File $file deleted, aborting");
         if (strpos($file, '/'))
             Core::_makeDirs($file);
@@ -898,19 +947,20 @@ class ExtractorMap {
      * @return int 0 - File Not Found, 1 - Error, 10+ offset in DATA file
      *
      */
-    function _offset(string $fh) : int {
+    function _offset(string $fh) : int
+    {
         // MAP only version
         $from = 0;
-        $to   = $this->map_cnt;
+        $to = $this->map_cnt;
         // $MAP is sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
         while (1) {
             $pos = ($from + $to) >> 1;
             // echo "$from <$pos> $to\n";
             $cfh = substr($this->map, $pos << 4, 10);  // 10 - FileHash length
             $cmp = strncmp($fh, $cfh, 10);
-            if (! $cmp) { # found it
+            if (!$cmp) { # found it
                 $offset_pack = substr($this->map, ($pos << 4) + 10, 6);
-                return unpack("Pd", $offset_pack."\0\0")['d'];
+                return unpack("Pd", $offset_pack . "\0\0")['d'];
             }
             if ($pos === $from)
                 return 0;
@@ -932,9 +982,11 @@ class ExtractorMap {
  * DEBUG: view MAP2 file: xxd -c 10  BigPack.map2
  * TEST: bigpack list --name-only | xargs -n 300 bigpack extractMap2
  */
-class ExtractorMap2 extends ExtractorMap {
+class ExtractorMap2 extends ExtractorMap
+{
 
-    function init() {
+    function init()
+    {
         $this->map = file_get_contents(Core::MAP2);
         $this->map_cnt = strlen($this->map) / 10;  // 10 byte items
     }
@@ -946,24 +998,26 @@ class ExtractorMap2 extends ExtractorMap {
      * TODO: use MAPH - 16BIT index for MAP << NO
      * @return int 0 - File Not Found, 1 - Error, 10+ offset in DATA file
      */
-    function _offset(string $fh, $retry = 0) : int {
+    function _offset(string $fh, $retry = 0) : int
+    {
         $block = $this->_mapIndex($fh);
         // Util::error("block #".$block);
         $H = new _ExtractorMapBlock(['block' => $block]);
-        $expected_start = substr($this->map, $block*10, 10);
+        $expected_start = substr($this->map, $block * 10, 10);
         $got_start = substr($H->map, 0, 10);
-        if (! strncmp($expected_start, $got_start, 10))
+        if (!strncmp($expected_start, $got_start, 10))
             return $H->_offset($fh);
         if ($retry) {
             fprintf(STDERR, "MAP and MAP2 files still out of sync (after retry)- Refusing to serve files\n");
             return 1; // File Not Found
         }
         // MAP2 and MAP out of SYNC
-        fprintf(STDERR,
-            "Cached MAP2 and On-disk MAP files out of sync\n".
-            "  Have you uploaded new MAP file?\n".
-            "  expected-block-start: ".bin2hex($expected_start)." got: ".bin2hex($got_start)."\n".
-            "  RE-READING MAP2 file\n"
+        fprintf(
+            STDERR,
+            "Cached MAP2 and On-disk MAP files out of sync\n" .
+                "  Have you uploaded new MAP file?\n" .
+                "  expected-block-start: " . bin2hex($expected_start) . " got: " . bin2hex($got_start) . "\n" .
+                "  RE-READING MAP2 file\n"
         );
         $this->init();
         return $this->_offset($fh, 1);
@@ -973,16 +1027,17 @@ class ExtractorMap2 extends ExtractorMap {
      * NON-EXACT BinarySearch of MAP2 index
      * return NN-of-(8kb)block-in-MAP file
      */
-    function _mapIndex(string $fh) : int { # NN-of-block-in-MAP file
+    function _mapIndex(string $fh) : int
+    { # NN-of-block-in-MAP file
         $from = 0;
-        $to   = $this->map_cnt;
+        $to = $this->map_cnt;
         // $MAP is sorted list of "filehash" (10 byte)
         while (1) {
             $pos = ($from + $to) >> 1;
             # echo "$from <$pos> $to\n";
             $cfh = substr($this->map, $pos * 10, 10);  // 10 - FileHash length
             $cmp = strncmp($fh, $cfh, 10);
-            if (! $cmp) { # found it
+            if (!$cmp) { # found it
                 return $pos;
             }
             if ($pos === $from) {
@@ -1005,9 +1060,11 @@ class ExtractorMap2 extends ExtractorMap {
 /**
  * internal helper for MAP2 extractor
  */
-class _ExtractorMapBlock extends ExtractorMap {
+class _ExtractorMapBlock extends ExtractorMap
+{
 
-    function init() {
+    function init()
+    {
         $block = $this->opts['block'];
         $fh = fopen(Core::MAP, "rb");
         fseek($fh, $block * 8192);
@@ -1021,57 +1078,63 @@ class _ExtractorMapBlock extends ExtractorMap {
  * internal class 
  * - archive reader from specific dir
  */
-class _BigPack {
+class _BigPack
+{
 
     private $dir;      // Archive Directory. Ends with "/"
     private $fh_data;  // DataFile fileHandler
 
-    function __construct(string $dir) {
+    function __construct(string $dir)
+    {
         if ($dir[-1] !== '/')
             $dir .= "/";
         $this->dir = $dir;
     }
-    
+
     /**
      * IndexFile Generator
      * @param $patterns : [] = no filters | list of fnmatch expressions
      * @return Lines of Index File [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
      */
-    function indexReader(?\Closure $filter = null) : \Generator {
-        if (! file_exists($this->dir.Core::INDEX))
-            Util::error("Bigpack index not found in $this->dir");        
-        $fh_index = fopen($this->dir.Core::INDEX, "r");
+    function indexReader(? \Closure $filter = null) : \Generator
+    {
+        if (!file_exists($this->dir . Core::INDEX))
+            Util::error("Bigpack index not found in $this->dir");
+        $fh_index = fopen($this->dir . Core::INDEX, "r");
         while (($L = stream_get_line($fh_index, 1024 * 1024, "\n")) !== false) {
-            if ($L{0} === '#')
+            if ($L {
+                0} === '#')
                 continue;
             $d = explode("\t", $L);
-            if ($filter && ! $filter($d))
+            if ($filter && !$filter($d))
                 continue;
             $d[1] = hex2bin($d[1]);  // FileNameHash
             $d[2] = hex2bin($d[2]);  // DataHash
-            $d[3] = (int) base_convert($d[3], 8, 10); // File Permissions
+            $d[3] = (int)base_convert($d[3], 8, 10); // File Permissions
             yield $d;
-        }        
+        }
         fclose($fh_index);
     }
-    
+
     /**
      * Read data from Data file at specified offset
      */
-    function _readOffset(int $offset) : array { # [data, data-hash, $flag]
-        if (! $this->fh_data) {
-            if (! file_exists($this->dir.Core::DATA))
+    function _readOffset(int $offset) : array
+    { # [data, data-hash, $flag]
+        if (!$this->fh_data) {
+            if (!file_exists($this->dir . Core::DATA))
                 Util::error("Bigpack DATA not found in $this->dir");
-            $this->fh_data  = Util::openLock($this->dir.Core::DATA);
+            $this->fh_data = Util::openLock($this->dir . Core::DATA);
         }
         return static::__readOffset($this->fh_data, $offset);
     }
-    
+
     /**
      * read from Data filehandler at specified offset
      * @return [data, data-hash, flag]
      */
-    static function __readOffset(/* data-file handler */ $fh, int $offset) : array {
+    static function __readOffset(/* data-file handler */$fh, int $offset) : array
+    {
         static $READ_BUFFER = 1024 * 16; // 16K
         // DATA IS: Prefix + $data
         //    pack("LA10c", $len, $data_hash, $flags).$data;
@@ -1079,7 +1142,7 @@ class _BigPack {
         //    uint32 size, byte size_high_byte, byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
         fseek($fh, $offset, SEEK_SET);
         $data = fread($fh, $READ_BUFFER);
-        if (! $data)
+        if (!$data)
             Util::error("can't read from data-file file-handler. offset=$offset");
         $d = unpack("Lsize/chsize/a10dh/cflag", $data);
         $d['size'] += $d['hsize'] << 32; // High Byte #5
@@ -1088,12 +1151,13 @@ class _BigPack {
         } else {
             $data = substr($data, Core::DATA_PREFIX);
             $remaining = $d['size'] - ($READ_BUFFER - Core::DATA_PREFIX);
-            $data = $data.fread($fh, $remaining);
+            $data = $data . fread($fh, $remaining);
         }
         return [$data, $d['dh'], $d['flag']];
     }
 
-    function __destruct() {
+    function __destruct()
+    {
         if ($this->fh_data)
             fclose($this->fh_data);
     }
@@ -1105,7 +1169,8 @@ class _BigPack {
  * "map" - index of "index"
  * "map2" - index of "map"
  */
-class Indexer {
+class Indexer
+{
 
     // public
     var $opts = []; // options from BigPack.options and Cli
@@ -1114,15 +1179,17 @@ class Indexer {
 
     var $FHP2MI = []; // FileHashPrefix(16bit) => MapIndex(UINT32) (MAPH map Hash index)
 
-    function __construct(array $opts) {
+    function __construct(array $opts)
+    {
         $this->opts = $opts;
     }
 
-    function index() {
+    function index()
+    {
          //      [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
         foreach (Core::indexReader() as $d) {
             $b_offset = substr(pack("P", $d[6]), 0, 6); // 64bit INT, little endian
-            $this->FH2OFFSET[] = $d[1].$b_offset;
+            $this->FH2OFFSET[] = $d[1] . $b_offset;
         }
         sort($this->FH2OFFSET);
         //var_dump(count($this->FH2OFFSET));
@@ -1136,12 +1203,13 @@ class Indexer {
     /**
      * do we have duplicate FileHashes  (versioned files)?
      */
-    function _checkDuplicates() : bool {
+    function _checkDuplicates() : bool
+    {
         $ofh = "";
         foreach ($this->FH2OFFSET as $fho) {
             $fh = substr($fho, 0, 10);
             if ($fh === $ofh) {
-                echo "Indexer: Versioned Files Found. fh=".bin2hex($ofh)." Index compression enabled - ";
+                echo "Indexer: Versioned Files Found. fh=" . bin2hex($ofh) . " Index compression enabled - ";
                 return true;
             }
             $ofh = $fh;
@@ -1152,7 +1220,8 @@ class Indexer {
     /**
      * Keep only latest version in MAP
      */
-    function _eliminateDuplicates() {
+    function _eliminateDuplicates()
+    {
         $FH2O = []; // new FH2O
         $ofh = "";
         $k = 0;
@@ -1175,13 +1244,14 @@ class Indexer {
      * BigPack.map is binary file
      * sorted list of ["filehash" (10 byte), "offset" (6 bytes)] records (256TB addressable)
      */
-    function buildMap() {
+    function buildMap()
+    {
         $fh_map = Util::openLock(Core::MAP, "wb");
         stream_set_write_buffer($fh_map, 1 << 20);
         foreach ($this->FH2OFFSET as $d)
             fwrite($fh_map, $d);
         fclose($fh_map);
-        echo "MAP: ".number_format(count($this->FH2OFFSET)), " items \n";
+        echo "MAP: " . number_format(count($this->FH2OFFSET)), " items \n";
         // echo "  FirstEntry: ".bin2hex($this->FH2OFFSET[0])."\n";  << DEBUG ONLY
         // echo "  LastEntry:  ".bin2hex($this->FH2OFFSET[count($this->FH2OFFSET)-1])."\n";
     }
@@ -1191,17 +1261,18 @@ class Indexer {
      * 1/512 subset of BigPack.map
      * sorted list of "filehash" (10 byte)
      */
-    function buildMap2() {
+    function buildMap2()
+    {
         $fh_map = Util::openLock(Core::MAP2, "wb");
         stream_set_write_buffer($fh_map, 1 << 20);
         $len = count($this->FH2OFFSET);
         $cnt = 0;
-        for ($i = 0; $i < $len; $i+=512) {
+        for ($i = 0; $i < $len; $i += 512) {
             fwrite($fh_map, substr($this->FH2OFFSET[$i], 0, 10)); // NEED ONLY 10-BYTE FILEHASH
             $cnt++;
         }
         fclose($fh_map);
-        echo "MAP2: ".number_format($cnt)." items\n";
+        echo "MAP2: " . number_format($cnt) . " items\n";
     }
 
     /**
@@ -1211,7 +1282,8 @@ class Indexer {
      * 16-bit-filehash-prefix => FIRST-MAP-ITEM-NN  --- FILE GZIPPED !!!
      * unmapped items points to 0xFFFFFFFF item
      */
-    function buildMapH() {
+    function buildMapH()
+    {
         $NIL = 0xFFFFFFFF; // no data
         foreach (range(0, 65535) as $i)
             $this->FHP2MI[$i] = $NIL;  // NO DATA FOUND
@@ -1235,7 +1307,7 @@ class Indexer {
         #    fwrite($fh_map, pack("V", $mi)); // map-indexes as uint32
         #fclose($fh_map);
         // var_dump($this->FHP2MI);
-        echo "MAP-HASH: ".number_format($cnt)." items\n";
+        echo "MAP-HASH: " . number_format($cnt) . " items\n";
     }
 } // Class Indexer
 

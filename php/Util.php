@@ -19,13 +19,15 @@ namespace hb\util;
  *   $MYCLASSNAME::_run($argv);
  *
  */
-class CliTool {
+class CliTool
+{
 
     /**
      * run method specified as first argument or show help
      * read params from "$class.options" or "$class/options" file, add them to args passed as cli options
      */
-    static function _run($argv) {
+    static function _run($argv)
+    {
         $args = Util::args($argv);
         #if (@$args['vv'])  // -vv = very-verbose
         #    echo json_encode(['options' => $args]), "\n";
@@ -33,7 +35,7 @@ class CliTool {
         if ($command[0] === '_')
             die("can't run internal command");
         $class = get_called_class();
-        $run = $class."::$command";
+        $run = $class . "::$command";
         // read options
         //foreach ([$class.".options", $class."/options"] as $fn) {
         //    if (file_exists($fn))
@@ -46,7 +48,8 @@ class CliTool {
      * show help from phpdoc
      * show default help, list all methods along with first line of help
      */
-    static function help($args) {
+    static function help($args)
+    {
         $what = $args[2] ?? "help";
         $class = get_called_class();
         $run = "$class::$what";
@@ -58,10 +61,10 @@ class CliTool {
             foreach ($methods as $m) {
                 if ($m->isPrivate() || $m->isProtected())
                     continue;
-                if ($m->class != __CLASS__ && $m->name[0] !== '_' && $m->name !== 'help') { // non-internal method from new class
-                    $method_doc = Util::methodDoc($m->class."::".$m->name);
-                    $first_line = strstr($method_doc, "\n", true) ?: $method_doc;
-                    echo "* ".$m->name."\n    ".$first_line."\n";
+                if ($m->class != __class__ && $m->name[0] !== '_' && $m->name !== 'help') { // non-internal method from new class
+                    $method_doc = Util::methodDoc($m->class . "::" . $m->name);
+                    $first_line = strstr($method_doc, "\n", true) ? : $method_doc;
+                    echo "* " . $m->name . "\n    " . $first_line . "\n";
                 }
             }
         }
@@ -72,7 +75,8 @@ class CliTool {
     /**
      * unknown command case
      */
-    public static function __callStatic($method, $args) {
+    public static function __callStatic($method, $args)
+    {
         Util::error("unknown command $method");
     }
 
@@ -81,13 +85,15 @@ class CliTool {
 /**
  * Misc generic methods
  */
-class Util {
+class Util
+{
 
     /**
      * show error to STDERR, terminate with ErrorCode
      */
-    static function error($message, int $code =1) {
-        fprintf(STDERR, $message."\n");
+    static function error($message, int $code = 1)
+    {
+        fprintf(STDERR, $message . "\n");
         exit($code);
     }
 
@@ -100,20 +106,23 @@ class Util {
     // --ab=value    is ['ab' => value]
     // --            is READ argument-list from STDIN
     // @return : ['option1' => ., 'option2' => ., ..., 0 => $argv[0], 1 => $argument1, ... ] ]
-    static function args(array $argv) : array { # ['option1' => ., 'option2' => ., ..., 0 => $argv[0], 1 => $argument1, ... ] ]
+    static function args(array $argv) : array
+    { # ['option1' => ., 'option2' => ., ..., 0 => $argv[0], 1 => $argument1, ... ] ]
         $options = [];
         $args = [0 => $argv[0]];
         array_shift($argv);
         foreach ($argv as $a) {
-            if ($a{0} !== '-') {
+            if ($a {
+                0} !== '-') {
                 $args[] = $a;
                 continue;
             }
-            error_if(strlen($a)<2, "incorrect arg: $a");
+            error_if(strlen($a) < 2, "incorrect arg: $a");
             // -abc
-            if ($a{1} !== '-') { // -ab == ['a' => true, 'b' -> true]
-                error_if(strpos($a, "="),  "incorrect argument: $a\nuse --name=value instead");
-                foreach (range(1, strlen($a)-1) as $p)
+            if ($a {
+                1} !== '-') { // -ab == ['a' => true, 'b' -> true]
+                error_if(strpos($a, "="), "incorrect argument: $a\nuse --name=value instead");
+                foreach (range(1, strlen($a) - 1) as $p)
                     $options[$a[$p]] = true;
                 continue;
             }
@@ -141,7 +150,8 @@ class Util {
     /**
      * get method's or class php-doc
      */
-    static function methodDoc(string $classMethod) : string { # method's php-doc
+    static function methodDoc(string $classMethod) : string
+    { # method's php-doc
         if (strpos($classMethod, '::')) {
             [$class, $method] = explode("::", $classMethod);
             $rc = new \ReflectionClass($class);
@@ -159,7 +169,8 @@ class Util {
      * open file for appending, with exclusive lock
      * fail otherwise
      */
-    static function openLock(string $filename, string $mode = "a+b", int $timeout_secs = 10) { # filehandler
+    static function openLock(string $filename, string $mode = "a+b", int $timeout_secs = 10)
+    { # filehandler
         $fh = fopen($filename, $mode);
         $start = time();
         while (!flock($fh, LOCK_EX | LOCK_NB, $wouldblock)) {
@@ -182,14 +193,17 @@ class Util {
      * @param  $dirEntryCallback($base_dir, $dirName) - return true to skip directory
      * @param  $rdir is internal paramether - always pass ""
      */
-    static function fileScanner(string $base_dir,
+    static function fileScanner(
+        string $base_dir,
                          /* private */ string $rdir = "",
-                         ?callable $fileCallback = null,
-                         ?callable $dirEntryCallback = null) { # Generator >> Path/File
+        ? callable $fileCallback = null,
+        ? callable $dirEntryCallback = null
+    ) { # Generator >> Path/File
         $dir = $base_dir . ($rdir ? "/$rdir" : "");
         foreach (scandir($dir) as $file) {
-            if ($file{0} === ".") // no cur-dir / hidden files / hidden directories
-                continue;
+            if ($file {
+                0} === ".") // no cur-dir / hidden files / hidden directories
+            continue;
             if ($fileCallback && $fileCallback($dir, $file))
                 continue;
             if (is_dir("$dir/$file")) {
@@ -205,8 +219,9 @@ class Util {
     /**
      * Generator - read lines from gzipped files
      */
-    static function gzLineReader($filename) { #
-        $zh = gzopen($filename,'r') or Util::error("can't open: $php_errormsg");
+    static function gzLineReader($filename)
+    { #
+        $zh = gzopen($filename, 'r') or Util::error("can't open: $php_errormsg");
         $cnt = 0;
         while ($line = gzgets($zh, 1024)) {
             yield rtrim($line);
@@ -221,7 +236,8 @@ class Util {
  * non recoverable Error -  developer uses Code Incorrect Way
  * throw \hb\Error exception if ...
  */
-function error_if($boolean, string $message) {
+function error_if($boolean, string $message)
+{
     if ($boolean)
         throw new \Error($message);  // \Error descendant
 }
