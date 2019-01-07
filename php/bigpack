@@ -138,10 +138,11 @@ namespace hb\bigpack {
         }
 
         /**
-         * DEBUG: extract files from archive.
-         * Lookups done via "MAP2, MAP" files
+         * Fast extract files from archive. Same algorithm as "bigpack server"
+         * Lookups done via "MAP2, MAP" files. Index file is NOT used.
+         * Will NOT restore last-modified-date & file permissions
          */
-        static function _extractMap2(array $opts)
+        static function extractMap2(array $opts)
         {
             (new ExtractorMap2($opts))->extract();
         }
