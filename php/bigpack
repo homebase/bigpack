@@ -107,6 +107,7 @@ namespace hb\bigpack {
 
         /**
          * EXTRACT all or specific files from archive
+         * On huge Archives this function is SLOW, use extractMap2 for super-fast extraction of specific files
          *
          * Usage:
          *    bigpack extract file1 file2 file3 ...
@@ -114,14 +115,16 @@ namespace hb\bigpack {
          *    bigpack extract --pattern="dir1/*.gif,dir2/aa*bb/a?.png"                   << comma delimited list of patterns
          *    bigpack extract --pattern-exclude="dir1/*.gif,dir2/aa*bb/a?.png"           << comma delimited list of patterns
          *    bigpack extract --pattern="dir1/*,dir2/*" --pattern-exclude="*.bak,*.tmp"
+         *    bigpack extract --all --check   << check all files in archive for corruption
          *
          * Options:
          *   --all      - extract all files
          *   --pattern          - comma delimited list of fnmatch patterns
          *   --pattern-exclude  - comma delimited list of fnmatch patterns (applied AFTER pattern)
          *   --data-hash     - extract ONE file with specific data-hash (e.g. specific version of file)
-         *                     run "bigpack list" to see all files aand data-hashes
+         *                     run "bigpack list" / "cat BigPack.index" to see all files and data-hashes
          *   --cat      - dump file to STDOUT
+         *   --check    - CHECK FILE(s) Consistency. Compare IndexFile.DataHash to DataFile.DataHash && actual_file_content.DataHash - WILL NOT extract any files - only check
          */
         static function extract(array $opts)
         {
@@ -363,6 +366,20 @@ namespace hb\bigpack {
                 echo shell_exec("rsync -av $f $remote");
             }
         }
+
+        /**
+         * check validity of Index and Data files
+         * make sure that last file(s) from IndexFile is the last file in DataFile
+         * 
+         * if you want to check validity of all files in archive use: "bigpack extract --all --check"
+         * 
+         * option: --buffer=8192    # analyze NN bytes from Index File to find out last file in Data File
+         */
+        static function check(array $opts)
+        {
+            (new Extractor($opts))->checkArchive($opts);
+        }
+
 
         /**
          * run bigpack server (using php buildin web server)

@@ -774,6 +774,10 @@ class Extractor
         foreach (Core::indexReader($this->opts) as $d) {
             $this->_extract($d);
         }
+        if (@$this->opts['check'] && @$this->opts['all']) {
+            echo "\nChecking for Junk After Last File in DataFile\n";
+            $this->checkArchive(); // 
+        }
     }
 
     // extract specific version of specific file
@@ -799,21 +803,32 @@ class Extractor
     // [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
     function _extract(array $d)
     {
-        // var_dump(['extract', $d]);
         [$file, $filename_hash, $data_hash, $mode, $file_mtime, $added_time, $offset] = $d;
-        // var_dump(["offset" => $offset]);
         [$data, $dh] = Core::_readOffset((int)$offset);
         @$this->opts['vv'] && print("file: $file dh: " . bin2hex($data_hash) . "\n");  // debug
-        // var_dump(["file" => $file, "data" => $data]);
-        if (!$data && !$dh)
-            Util::error("File $file deleted, aborting");
+        if (!$data && !$dh) {
+            fwrite(STDERR, "File: $file deleted, skipping" . "\n");
+            return;
+        }
         if ($dh !== $data_hash) {
-            $error = "File: $file data hash mismatch expected: " . bin2hex($data_hash) . " got: " . bin2hex($dh) . " read-data-size: " . strlen($data) . " use --allow-mismatch to bypass broken files";
+            $error = "File: $file data hash mismatch expected: " . bin2hex($data_hash) . " got: " . bin2hex($dh) . " read-data-size: " . strlen($data);
             echo "take 2 on hash:" . bin2hex(Core::hash($data)) . "\n";
-            if ($this->opts['allow-mismatch'])
+            if (@$this->opts['allow-mismatch'])
                 fwrite(STDERR, $error . "\n");
             else
-                Util::error($error); // && DIE !
+                Util::error($error . " use --allow-mismatch to bypass broken files"); // && DIE !
+        }
+        if (@$this->opts['check']) {
+            $real_data_hash = Core::hash($data);
+            if ($real_data_hash !== $data_hash) {
+                $error = "Filename $file ActualContentHash " . bin2hex($real_data_hash) . " != expected Content Hash " . bin2hex($data_hash);
+                if (@$this->opts['allow-mismatch'])
+                    fwrite(STDERR, $error . "\n");
+                else
+                    Util::error($error); // & DIE
+            }
+            echo "$file OK\n";
+            return $data;
         }
         if (@$this->opts['cat']) {
             echo $data;
@@ -863,6 +878,47 @@ class Extractor
             $d[6] = number_format($d[6]);
             echo join("\t", $d), "\n";
         }
+    }
+
+    /**
+     * check validity of Index and Data files
+     * make sure that last file(s) added to Index is last file in Data File
+     * option: --buffer=8192
+     */
+    function checkArchive() {
+        $buffer = $this->opts['buffer'] ?? 8192;
+        $lastIndexLines = Util::fileLastLines(Core::INDEX, $buffer);
+        // analyze files read, find one with max offset
+        $findMax = function(array $c, string $item) { # IndexReader Array
+            $d = explode("\t", $item); 
+            return $d[6] > $c[6] ? $d : $c; // $d[6] == DataOffset
+        };
+        $d = array_reduce($lastIndexLines, $findMax, [6 => 0]); // $d see IndexReader return
+        $d[1] = hex2bin($d[1]);  // FileNameHash
+        $d[2] = hex2bin($d[2]);  // DataHash
+        $d[3] = (int)base_convert($d[3], 8, 10); // File Permissions
+        echo "Seems like `$d[0]` is the last file in IndexFile (based last $buffer bytes from index)\n";
+        echo "making sure that this file is the last in DataFile and file Checksum is correct\n";
+        $this->opts['check'] = 1;
+        $data = $this->_extract($d); // read file, make sure IndexFile DataHash === DataFilePrefix DataHash
+        // MAKE SURE File is LAST ONE In DataFile
+        $offset = $d[6];
+        [$data, $dh, $flag] = Core::_readOffset($offset, true);  // RAW Data
+        $expectedSize = /* file-offset */  $d[6] + strlen($data) + Core::DATA_PREFIX;
+        $actualSize = filesize(Core::DATA);
+        if ($expectedSize === $actualSize) {
+            echo "Datafile Size Check - OK\n";
+            echo "Congratulations - Index and Datafile files in SYNC\n";
+            echo "use 'bigpack extract --all --check' to check all files in archive for corruption\n";
+            return;
+        }
+        $error = "\nERROR!!\nUnexpeced DataFile Size. Junk Data Found after the END of (probably) Last File in Index.\n".
+            "possible reasons: \n".
+                "you have too many duplicate files so checkArchive was not able to locate last file in DataFile, increase --buffer and try again\n".
+                "disk was full, kill -9 of_write_process, power off during write\n".
+            "Expected : ".number_format($expectedSize)." Actual: ".number_format($actualSize)."\n".
+            "to get rid of just use: truncate --size=$expectedSize ".Core::DATA."\n";
+        Util::error($error);
     }
 
 
@@ -1137,7 +1193,7 @@ class _BigPack
         //    pack("LA10c", $len, $data_hash, $flags).$data;
         // PREFIX IS:
         //    uint32 size, byte size_high_byte, byte[10] data-hash, byte flags, byte[$len] data  // 16 byte prefix
-        fseek($fh, $offset, SEEK_SET);
+        fseek($fh, $offset);
         $data = fread($fh, $READ_BUFFER);
         if (!$data)
             Util::error("can't read from data-file file-handler. offset=$offset");

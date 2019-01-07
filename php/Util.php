@@ -219,7 +219,7 @@ class Util
     /**
      * Generator - read lines from gzipped files
      */
-    static function gzLineReader($filename)
+    static function gzLineReader(string $filename)
     { #
         $zh = gzopen($filename, 'r') or Util::error("can't open: $php_errormsg");
         $cnt = 0;
@@ -229,6 +229,20 @@ class Util
         gzclose($zh) or Util::error("can't close: $php_errormsg");
     }
 
+    /**
+     * return last lines of a file in reverse order (last line goes first)
+     * number of lines depends on $buffer size
+     */
+    static function fileLastLines(string $filename, int $buffer = 8192) : array
+    { 
+        $fh = fopen($filename, 'r');
+        fseek($fh, -$buffer , SEEK_END);
+        $lines = explode("\n", fread($fh, $buffer));
+        array_pop($lines); // last line is always empty
+        array_shift($lines); // throw out partially-read line
+        fclose($fh);
+        return array_reverse($lines);
+    }
 
 } // class Util
 
