@@ -1,0 +1,33 @@
+# Config:
+#   Specify host and port in ExecStart
+#   Change username, group, working-directory
+#
+# Install with:
+#    sudo cp /usr/local/src/bigpack/service/bigpack-go.service /etc/systemd/system
+#    # make sure you have /usr/local/bin/bigpack-server
+#
+# View Error Logs:
+#   sudo journalctl -r -u bigpack-go
+#
+[Unit]
+Description=Bigpack Golang web-server
+After=syslog.target network.target
+
+[Service]
+# Edit this config !!
+User=parf
+Group=parf
+WorkingDirectory=/home/parf/src/bigpack-test
+ExecStart=/usr/local/bin/bigpack-server -listen 127.0.0.1:80
+
+# avoid changing this
+SyslogIdentifier=bigpack-go
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+PrivateTmp=true
+Restart=always
+RestartSec=30
+StandardError=syslog
+RuntimeDirectory=bigpack
+
+[Install]
+WantedBy=multi-user.target

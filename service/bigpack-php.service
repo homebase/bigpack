@@ -1,0 +1,31 @@
+# Config:
+#   Specify host and port in ExecStart
+#   To enable `Expires` Header - specify "expires-minutes=50" in BigPack.options file
+#   Change username, group, working-directory
+#
+# Install with:
+#    sudo cp /usr/local/src/bigpack/service/bigpack-php.service /etc/systemd/system
+#
+# View Error Logs:
+#   sudo journalctl -r -u bigpack-php
+#
+[Unit]
+Description=Bigpack PHP web-server
+After=syslog.target network.target
+
+[Service]
+# Edit this config !!
+User=parf
+Group=parf
+WorkingDirectory=/home/parf/src/bigpack-test
+ExecStart=php -S localhost:8080 /usr/local/src/bigpack/php/bigpack-server
+
+# avoid touching this
+PrivateTmp=true
+Restart=always
+RestartSec=30
+SyslogIdentifier=bigpack-php
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
