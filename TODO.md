@@ -29,19 +29,9 @@ Example:
 * build list of most requested files along with size in sectors
 * cache most used files using saved-disk-sector-reads as a measurment
 
-## bigpack update (todo)
-* adds new file contents to BigPack (old content kept intact)
-* removes added files (optionally)
-* no-longer relevant filename to content mapping stored in BigPack.deleted file
-* rebuild indexes
-
 ## bigpack purge (todo)
-* removes unused file contents, clean up BigPack.deleted
+* removes OLD file contents
 * rebuild indexes
 * optionally specify how many revisions you want to retain
-
-## bigpack merge (todo)
- * merge two or more bigpacks
-* rebuild indexes
 
 

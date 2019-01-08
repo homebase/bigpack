@@ -183,6 +183,15 @@ Etag: e0ac131172774a949e70
 * supports ETAG, EXPIRES
 * compressed(gzdeflate) files served as compressed
 
+## run "bigpack help" too see more commands, "bigpack help $command" to see command help
+* `merge` - merge archives
+* `split` - split archive
+* `replaceFiles`, removeFiles, 
+* `addFromArchive` - add files from another archive
+* `check` - check validity of Index and Data files
+* `extract --check` - check archive for data corruption
+* `extractMap2` - super-fast extract file from huge archives
+
 # See Also
 * [License - MIT](LICENSE)
 * [Internal Notes](INTERNALS.md)
