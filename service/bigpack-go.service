@@ -4,7 +4,7 @@
 #
 # Install with:
 #    sudo cp /usr/local/src/bigpack/service/bigpack-go.service /etc/systemd/system
-#    # make sure you have /usr/local/bin/bigpack-server
+#    # make sure you have /usr/local/bin/bigpack-server - see Install section of https://github.com/homebase/bigpack/blob/master/README.md
 #
 # View Error Logs:
 #   sudo journalctl -r -u bigpack-go
@@ -17,6 +17,7 @@ After=syslog.target network.target
 # Edit this config !!
 User=parf
 Group=parf
+#WorkingDirectory=/var/bigpack/%i
 WorkingDirectory=/home/parf/src/bigpack-test
 ExecStart=/usr/local/bin/bigpack-server -listen 127.0.0.1:80
 
