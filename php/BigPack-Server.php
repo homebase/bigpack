@@ -34,7 +34,7 @@ use hb\util\Util;
  */
 class Server {
 
-    const VERSION = "1.0.1";
+    const VERSION = "1.0.2";
 
     // shared memory key
     // SHM Data shared only between php-fpm / parent-php-process-children
@@ -108,7 +108,8 @@ class ExtractorWeb extends ExtractorMap2 {
      */
     protected function mimeType(string $file, string $content, $gzip) {
         $ext = "";  // will not unzip
-        $ext_pos = strrpos($file, '.', 1);
+        $filename_start = strrpos($file, '/', 1) ?: 1;
+        $ext_pos = strrpos($file, '.', $filename_start);
         if ($ext_pos === false) { // NO Extension - analyze file
             if ($gzip) {
                 if (strlen($data) > 65536)
