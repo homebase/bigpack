@@ -293,20 +293,26 @@ namespace hb\bigpack {
          * - Replace files in Archive (by generating new one)
          * - Remove files from Archive (by generating new one)
          * 
+         * - IMPORTANT LIMITATIONS:
+         *     - if filename exists in destinations archive, source file is ignored
+         *       hint: just switch source and destination
+         *     - first version of "copy-from" filename is used, all other versions are ignored
+         *       hint: use "bigpack purge" to delete all previous versions of file (not implemented yet)
+         * 
          * Required Option:
-         *  --archive-dir="..."
+         *   --archive-dir="..."
          * 
          * Options:
          *   --pattern          - comma delimited list of fnmatch patterns
          *   --pattern-exclude  - comma delimited list of fnmatch patterns (applied AFTER pattern)
-         *   --all              - add all files
+         *   --all              - all files, same as --pattern="*"
          *
          * Examples:
          *    
          *   Add files from external bigpack:
          *     cd my-archive
          *     bigpack addFromArchive --archive-dir=path-to-second-archive --all
-         *     bigpack addFromArchive --archive-dir=path-to-second-archive --pattern="*.jpg,*.jpeg,*.png,*.html" --pattern-exclude="exclude-dir/*"
+         *     bigpack addFromArchive --archive-dir=path-to-second-archive --pattern="dir1/*,*.jpg,*.jpeg" --pattern-exclude="dir/a/*b/*,*.bak"
          *   
          *   Extract files from bigpack to another bigpack:
          *     cd my-archive
