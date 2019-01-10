@@ -35,7 +35,6 @@ Think of `tar + gzip + dedup + web-server` - alike combination on steroids
 * use nginx as front-end http2 server
 
 # Web Server Installation
-```
 * high performance bigpack server written in golang
 * 20K/sec random requests on 400GB archive
 * 200MB/sec http traffic served on developer's computer (10Gbe network)
