@@ -10,11 +10,10 @@ Think of `tar + gzip + dedup + web-server` - alike combination on steroids
 * Deduplicate File Contents
 * Optionally Compress Files, better compression level than tar.gz
 * Fast Web Server
-* Low Memory Usage:
-  * 2-level-index needs only ~3MB RAM for 100M files, ~20MB for billion archived files
   * 20K/sec random queries, 200MByte/sec effective network traffic (10Gbe network, developer PC, 400GB archive)
+  * Low Memory Usage:
+    * 2-level-index needs only ~3MB RAM for 100M files, ~20MB for billion archived files
 * Compact and Efficient Indexes
-  * Limiting factor is your Network/SSD/KernelTCPStack speed
 * Limits:
     * Max Archive(Shard) Size: `256TB (2**48)`
     * Max Shards: `65536 (2**16)`
