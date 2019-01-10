@@ -50,21 +50,17 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 provides web server only
 ```
 cd /usr/local/bin
+# check https://github.com/homebase/bigpack/releases for latest release
 sudo wget https://github.com/homebase/bigpack/releases/download/1.0.0/bigpack-server
 sudo chmod +x bigpack-server
+# allow to listen on port 80 for unprivileged user
 sudo setcap 'cap_net_bind_service=+ep' /usr/local/bin/bigpack-server
 ```
-1. last command allows bigpack-server to listen on port 80 from unprivileged user
-2. check https://github.com/homebase/bigpack/releases for latest release version
 
-### Golang web sever usage
+### Usage:
 ```
-> cd directory_with_bigpack_archive
-> bigpack-server --help
-Usage of bigpack-server:
-  -listen string
-        listen ip and port (default "127.0.0.1:8081")
-> GOMAXPROCS=8 bigpack-server --listen "my_public_ip:80"
+$ cd directory_with_bigpack_archive
+$ bigpack-server --listen "my_public_ip:80"
 ```
 
 ## Bigpack PHP 
@@ -75,19 +71,16 @@ Provides cli(command-line) tools:
 
 *Pre-requisites*: `git`, `php7.2`, `php-pecl-apcu` (needed for "bigpack server")
 
-
 ```
-# same for all linuxes
 cd /usr/local/src/
 sudo mkdir bigpack
 sudo chown $USER bigpack
 git clone https://github.com/homebase/bigpack.git
 cd /usr/local/bin
-
 sudo ln -s ../src/bigpack/php/bigpack
 ```
 
-Centos/RHEL specific prerequisite installation
+Centos/RHEL prerequisite installation
 ```
 # centos6/rhel6
 sudo yum -y install http://rpms.remirepo.net/enterprise/remi-release-6.rpm git
@@ -97,7 +90,7 @@ sudo yum -y --enablerepo remi-php72 install php php-pecl-apcu
 ```
 
 
-# Usage example
+### Usage
 ```
 [~]$ cd 
 [~]$ mkdir tmp
