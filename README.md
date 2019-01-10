@@ -4,19 +4,17 @@ Blazing Fast Petabyte Scale Static Web Server + Tools.
 
 Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 
+Think of `tar + gzip + dedup + web-server` - alike combination on steroids
+
 * Pack lots of files in directory/sub-directories into several files (data file + indexes)
 * Deduplicate File Contents
-* compress files (gzdeflate is used internally (when appropriate))
-  better compression level than tar.gz
-* Optionally shards files (up to 65536 shards) (todo)
-* Serve specific files via http fast
-  * 20K/sec random queries, 200MB/sec effective network traffic (developer PC, 400MB bigpack archive)
-  * Compact and Efficient Indexes
+* Optionally Compress Files, better compression level than tar.gz
+* Fast Web Server
+* Low Memory Usage:
+  * 2-level-index needs only ~3MB RAM for 100M files, ~20MB for billion archived files
+  * 20K/sec random queries, 200MByte/sec effective network traffic (10Gbe network, developer PC, 400GB archive)
+* Compact and Efficient Indexes
   * Limiting factor is your Network/SSD/KernelTCPStack speed
-    filesystem overhead completely eliminated
-  * 2-level-index needs only ~3MB RAM for 100M files, ~20MB for 1B archived files
-    one 8K index read per file
-  * One level index needs 1.5GB RAM for 100M files (no extra reads, only ~9 memory reads per request)
 * Limits:
     * Max Archive(Shard) Size: `256TB (2**48)`
     * Max Shards: `65536 (2**16)`
@@ -27,8 +25,6 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
     * File-Name-Hash: `80bit`
 * Recommendations:
     * use SSD (hard disks can't handle random access)
-    * defrag your data-file: e4defrag, xfs_fsr
-    * split data in shards, keep shards small: 20GB - 100GB
 * MIT licensed Open Source Project
 * Can use filesystem or raw-partition for data storage
 
@@ -39,15 +35,11 @@ Serve Billion Files from an Indexed, Compressed and Deduplicated Archive.
 * Combine OpenStreetMap map-tiles in one file, avoid filesystem overhead, serve them super fast
 * use nginx as front-end http2 server
 
-
-## Golang BigPack Server (go/bigpack-server)
+# Web Server Installation
+```
 * high performance bigpack server written in golang
-* 20K/sec random requests on 350GB archive
-* 200MB/sec http traffic served on average developer's computer
-
-# Installation
-## Golang web server installation
-provides web server only
+* 20K/sec random requests on 400GB archive
+* 200MB/sec http traffic served on developer's computer (10Gbe network)
 ```
 cd /usr/local/bin
 # check https://github.com/homebase/bigpack/releases for latest release
@@ -63,12 +55,7 @@ $ cd directory_with_bigpack_archive
 $ bigpack-server --listen "my_public_ip:80"
 ```
 
-## Bigpack PHP 
-Provides cli(command-line) tools:
-* archiving, extracting
-* web server
-* rsync wrapper and other utilities
-
+# Command Line Tools Installation
 *Pre-requisites*: `git`, `php7.2`, `php-pecl-apcu` (needed for "bigpack server")
 
 ```
@@ -137,15 +124,17 @@ Etag: e0ac131172774a949e70
 ```
 
 # Cli Tools
-* run `bigpack help` to see all commands
-* run `bigpack help CommandName` to see command help / options
+
+## bigpack help
+* *all* commands overview
+* `bigpack help CommandName` - detailed help
 
 ## bigpack init
 * compress all files in directory/subdirectories
 * build indexes
 
 ## bigpack add
-* adds new files to BigPack
+* adds *new files* to BigPack
 * ignores existing files
 * rebuild indexes
 
@@ -168,20 +157,20 @@ Etag: e0ac131172774a949e70
 * remove alredy archived files (file last-modification-check performed)
 
 ## bigpack sync $remote
- * SAFE rsync Bigpack, remote web server will be automatically reloaded
+ * SAFE rsync Bigpack, remote bigpack-web server will be automatically reloaded
 
 ## bigpack server (php)
 * Start a webserver, that serves files from  BigPack
 * even this server is more than good enough when placed behind nginx
 * run single-thread PHP server
 * minimal memory requirements
-* Options:
-    * --port   - tcp port number - default 8080
-    * --host   - hostname listen to
 * supports ETAG, EXPIRES
 * compressed(gzdeflate) files served as compressed
+* Options:
+    * --port   - tcp port number - default 8080
+    * --host   - ip/hostname listen to
 
-## run "bigpack help" too see more commands, "bigpack help $command" to see command help
+## bigpack ...  (more commands)
 * `merge` - merge archives
 * `split` - split archive
 * `replaceFiles`, removeFiles, 
@@ -189,6 +178,7 @@ Etag: e0ac131172774a949e70
 * `check` - check validity of Index and Data files
 * `extract --check` - check archive for data corruption
 * `extractMap2` - super-fast extract file from huge archives
+* `help` - see EVEN more commands
 
 # See Also
 * [License - MIT](LICENSE)
