@@ -50,7 +50,7 @@ namespace hb\bigpack {
         static function init(array $opts)
         {
             if ((new Packer($opts))->init()) // if files-added
-            (new Indexer($opts))->index();
+                (new Indexer($opts))->index();
         }
 
         /**
@@ -65,7 +65,7 @@ namespace hb\bigpack {
         static function add(array $opts)
         {
             if ((new Packer($opts))->add())  // if files-added
-            (new Indexer($opts))->index();
+                (new Indexer($opts))->index();
         }
 
         /**
@@ -82,7 +82,7 @@ namespace hb\bigpack {
         static function update(array $opts)
         {
             if ((new Packer($opts))->updateChanged())  // if files-added
-            (new Indexer($opts))->index();
+                (new Indexer($opts))->index();
         }
 
 
@@ -200,7 +200,6 @@ namespace hb\bigpack {
         static function generateIndex(array $opts)
         {
             $cmd = __DIR__ . '/bigpack list --name-only | perl -ne \'chomp; print "$. <a href=\\"$_\\">$_</a><br>\n"\'';
-        // echo $cmd;
             shell_exec("$cmd > index.html");
         }
 
@@ -235,7 +234,7 @@ namespace hb\bigpack {
         static function addFromFileList(array $opts)
         {
             if ((new Packer($opts))->addFromFileList($opts)) // if files-added
-            (new Indexer($opts))->index();
+                (new Indexer($opts))->index();
         }
 
 
@@ -339,7 +338,7 @@ namespace hb\bigpack {
             if (!@$opts['archive-dir'])
                 return self::help(['2' => 'addFromArchive']);
             if ((new Packer($opts))->addFromArchive($opts)) // if files-added
-            (new Indexer($opts))->index();
+                (new Indexer($opts))->index();
         }
 
 
