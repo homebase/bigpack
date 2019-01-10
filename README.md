@@ -74,21 +74,26 @@ Provides cli(command-line) tools:
 * rsync wrapper and other utilities
 
 *Pre-requisites*: `git`, `php7.2`, `php-pecl-apcu` (needed for "bigpack server")
+
+
 ```
-[~]$ cd /usr/local/src/
-[src]$ sudo mkdir bigpack
-[src]$ sudo chown $USER bigpack
-[src]$ git clone https://github.com/homebase/bigpack.git 
-Initialized empty Git repository in /usr/local/src/bigpack/.git/
-...
-Receiving objects: 100% (323/323), 5.38 MiB, done.
-Resolving deltas: 100% (194/194), done.
-[src]$ cd /usr/local/bin
-[bin]$ sudo ln -s ../src/bigpack/php/bigpack
-[bin]$ bigpack
-hb\bigpack\Cli::help
-File Compressor with Deduplication.
-...
+# same for all linuxes
+cd /usr/local/src/
+sudo mkdir bigpack
+sudo chown $USER bigpack
+git clone https://github.com/homebase/bigpack.git
+cd /usr/local/bin
+
+sudo ln -s ../src/bigpack/php/bigpack
+```
+
+Centos/RHEL specific prerequisite installation
+```
+# centos6/rhel6
+sudo yum -y install http://rpms.remirepo.net/enterprise/remi-release-6.rpm git
+# centos7/rhel 7
+sudo yum -y install http://rpms.remirepo.net/enterprise/remi-release-7.rpm git
+sudo yum -y --enablerepo remi-php72 install php php-pecl-apcu
 ```
 
 

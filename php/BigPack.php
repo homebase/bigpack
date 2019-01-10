@@ -884,6 +884,7 @@ class Extractor
      * check validity of Index and Data files
      * make sure that last file(s) added to Index is last file in Data File
      * option: --buffer=8192
+     * HINT: use 'bigpack extract --all --check' to check all files in archive for corruption
      */
     function checkArchive() {
         $buffer = $this->opts['buffer'] ?? 8192;
@@ -907,9 +908,8 @@ class Extractor
         $expectedSize = /* file-offset */  $d[6] + strlen($data) + Core::DATA_PREFIX;
         $actualSize = filesize(Core::DATA);
         if ($expectedSize === $actualSize) {
-            echo "Datafile Size Check - OK\n";
-            echo "Congratulations - Index and Datafile files in SYNC\n";
-            echo "use 'bigpack extract --all --check' to check all files in archive for corruption\n";
+            echo "Datafile Size Check - OK\n\n";
+            echo "Congratulations - Index and Datafile files are in SYNC\n";
             return;
         }
         $error = "\nERROR!!\nUnexpeced DataFile Size. Junk Data Found after the END of (probably) Last File in Index.\n".

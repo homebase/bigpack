@@ -380,6 +380,14 @@ namespace hb\bigpack {
             (new Extractor($opts))->checkArchive($opts);
         }
 
+        /**
+         * upgrade bigpack (update) to latest version from github
+         * simple "git pull" wrapper
+         */
+        static function upgrade(array $opts) {
+            $dir = __DIR__;
+            echo shell_exec("cd $dir; cd ..; git pull");
+        }
 
         /**
          * run bigpack server (using php buildin web server)
@@ -411,7 +419,7 @@ namespace hb\bigpack {
         /**
          * version info and more
          */
-        static function about(array $opts)
+        static function version(array $opts)
         {
             $P = new Packer($opts);
             $skip_gzip = array_keys($P->skip_gzip);

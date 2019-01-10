@@ -1,61 +1,42 @@
 # Ideas / ToDo
 #   Sublime Edit PlainTasks Formatted
 
+☐ Named bigpack
+   $name.BigPack.data
+   $name.BigPack.$shard.data
+   BigPack.$shard.data
+   bigpack --name="name" option
+   bigpack --shard=1 --name=$name
+
  ☐ SHARDING !!
+   ☐ FIRST = how to find backend on NGINX side (then split traffic to appropriate backend)
+   ☐ idea: hash($uri, NN_SHARDS) => SHARD, proxy_pass: $BP_SERVER[$SHARD]
+     bigpack shard --nn=$NN_SHARD
+     bigpack server --shard=4   << serve data from shard 4 (BigPack.$shard.data/map/map2)
+   ☐ alt idea - uri-sharding golang server returns X-ACCEL-REDIRECT
+     want to use unmodified nginx server
+     (same Hardware as nginx, can even use sockets instead of ip)
+      proxy_set_header   X-upstream      $upstream;
+      proxy_pass http://bp_$upstream;
+      or via $arg_upstream
+      ^^ test this
+      or use nweb-derived simple "c" socket server.
+      https://www.ibm.com/developerworks/systems/library/es-nweb/index.html
 
-
- ☐ bp: check
-   find max(offset) from index file
-   check that file exists and is final file
-   ; --fix will find correct END of archive
-   ; - CUT unknown DATA
-   ; or CUT unknown INDEX FILES
-   ; --full
-   ; iterate over *.data - make sure we have ALL files in INDEX
-
- ☐ bp: archive consistency check FOR "add" / "create" (PACKER)
-   ☐ bp check
-
- ☐ bp: bigpack & directories
-
- ☐ bp: options to ignore dirs
-
- ☐ bp: merge archives
-
- ☐ bp: split Advanced Methods into Traits
-
- ☐ bp-go: read option files
-    https://stackoverflow.com/questions/40022861/parsing-values-from-property-file-in-golang
-
+Archive:
+ ✔ bp: merge archives @done (19-01-09 15:02)
+ ✘ bp: archive consistency check FOR "add" / "create" (PACKER) @cancelled (19-01-09 15:01)
+ ✔ bp: check @done (19-01-09 15:01)
+  90% done
+  still does not check for JUNK inside datafile (between files)
+  find max(offset) from index file
+  check that file exists and is final file
+  ; --fix will find correct END of archive
+  ; - CUT unknown DATA
+  ; or CUT unknown INDEX FILES
+  ; --full
+  ; iterate over *.data - make sure we have ALL files in INDEX
+ ✔ bp check @done (19-01-09 15:01)
  ✔ bp-go: - Mime Types @done (18-12-10 17:16)
-   https://golang.org/src/mime/type.go?s=2698:2737#L93
+  https://golang.org/src/mime/type.go?s=2698:2737#L93
 
- ☐ bp-go: run once:
-   var once sync.Once // guards initMime
-   func initMime() { .... }
-   once.Do(initMime)
-
-
-
-
-OLD:
-
-BigPack:
-  ☐ https://github.com/homebase/bigpack
-
-mmap: << found useless
-   https://medium.com/@arpith/adventures-with-mmap-463b33405223
-   https://godoc.org/golang.org/x/exp/mmap
-   https://github.com/golang/exp/blob/master/mmap/mmap_test.go
-
-  https://stackoverflow.com/questions/33969795/how-to-send-map-using-gob-in-golang
-  https://flaviocopes.com/go-list-files/
-  https://golang.org/pkg/crypto/md5/
-  https://golang.org/pkg/hash/  <<<
-     https://golang.org/pkg/hash/fnv/   New64 / New64a   (FNV1A is better)
-     https://golang.org/pkg/hash/crc64/  CRC64
-     https://softwareengineering.stackexchange.com/questions/49550/which-hashing-algorithm-is-best-for-uniqueness-and-speed
-     test corpus: https://github.com/dwyl/english-words
-     php support FNV1A algo="fnv1a64"
-     https://github.com/google/cityhash64  << FASTEST  https://aras-p.info/blog/2016/08/09/More-Hash-Function-Tests/  8x times of FNV1
-     http://ridingtheflow.blogspot.com/2012/05/cityhash64-and-finding-collision.html
