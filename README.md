@@ -143,14 +143,12 @@ Etag: e0ac131172774a949e70
 ## bigpack extract
 * Extract packed files
 * Extract specific file, file+revision from archive
+* see extractMap2 command for fast extraction
 
 ## bigpack deleteContent `[--undelete]`
 * Mark specific Content as Deleted/Undeleted (e.g. DMCA request)
-* Important: actual content is NOT deleted. use --undelete to undelete
-* web server will return HTTP 410 GONE for files
-
-## bigpack generateIndex
-* generate `index.html` with links to all files stored in bigpack
+* Important: actual content is NOT deleted
+* HTTP "410 GONE" Code returned for deleted files by web-server
 
 ## bigpack removeArchived
 * remove alredy archived files (file last-modification-check performed)
@@ -170,6 +168,7 @@ Etag: e0ac131172774a949e70
     * --host   - ip/hostname listen to
 
 ## bigpack ...  (more commands)
+* `generateIndex` - generate `index.html` with links to all files stored in bigpack
 * `merge` - merge archives
 * `split` - split archive
 * `replaceFiles`, removeFiles, 
