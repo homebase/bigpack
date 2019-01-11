@@ -220,8 +220,8 @@ class Util
      * Generator - read lines from gzipped files
      */
     static function gzLineReader(string $filename)
-    { #
-        $zh = gzopen($filename, 'r') or Util::error("can't open: $php_errormsg");
+    {
+        $zh = gzopen($filename, 'r') or Util::error("can't open: $filename");
         $cnt = 0;
         while ($line = gzgets($zh, 1024)) {
             yield rtrim($line);
@@ -235,7 +235,7 @@ class Util
      */
     static function fileLastLines(string $filename, int $buffer = 8192) : array
     { 
-        $fh = fopen($filename, 'r') or Util::error("can't open: $php_errormsg");
+        $fh = fopen($filename, 'r') or Util::error("can't open: $filename");
         fseek($fh, -$buffer , SEEK_END);
         $lines = explode("\n", fread($fh, $buffer));
         array_pop($lines); // last line is always empty
