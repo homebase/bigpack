@@ -189,21 +189,21 @@ class Util
      * skips hidden files ".*"
      * returns relative path
      *
+     * @param  $rdir is internal paramether - always pass ""
      * @param  $fileCallback($dir, $filename)         - return true to skip file
      * @param  $dirEntryCallback($base_dir, $dirName) - return true to skip directory
-     * @param  $rdir is internal paramether - always pass ""
      */
     static function fileScanner(
-        string $base_dir,
-                         /* private */ string $rdir = "",
-        ? callable $fileCallback = null,
-        ? callable $dirEntryCallback = null
-    ) { # Generator >> Path/File
+                        string $base_dir,
+                        /* private */ string $rdir = "",
+                        ? callable $fileCallback = null,
+                        ? callable $dirEntryCallback = null
+    ) 
+    { # Generator >> Path/File
         $dir = $base_dir . ($rdir ? "/$rdir" : "");
         foreach (scandir($dir) as $file) {
-            if ($file {
-                0} === ".") // no cur-dir / hidden files / hidden directories
-            continue;
+            if ($file {0} === ".") // no cur-dir / hidden files / hidden directories
+                continue;
             if ($fileCallback && $fileCallback($dir, $file))
                 continue;
             if (is_dir("$dir/$file")) {
