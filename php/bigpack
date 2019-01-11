@@ -287,6 +287,20 @@ namespace hb\bigpack {
         }
 
         /**
+         * remove old vesion of files from bigpack archive
+         * 
+         * use "addFromArchive" method
+         *    mkdir last-only
+         *    cd last-only
+         *    bigpack init --bare                                        # create empty archives
+         *    bigpack addFromArchive --archive-dir=.. --all --last-only  # copy only latest version of files
+         */
+        static function vacuum(array $opts)
+        {
+            self::help([2 => "vacuum"]);
+        }
+
+        /**
          * - Add all/specific files from external bigpack archive into current archive
          * - Extract specific files from archive
          * - Replace files in Archive (by generating new one)
@@ -296,8 +310,8 @@ namespace hb\bigpack {
          *     - if filename exists in destinations archive, source file is ignored
          *       hint: just switch source and destination
          *     - first version of "copy-from" filename is used, all other versions are ignored
-         *       hint: use "bigpack purge" to delete all previous versions of file (not implemented yet)
-         * 
+         *       hint: use --last-only to read ONLY latest version
+         *       
          * Required Option:
          *   --archive-dir="..."
          * 
@@ -305,6 +319,7 @@ namespace hb\bigpack {
          *   --pattern          - comma delimited list of fnmatch patterns
          *   --pattern-exclude  - comma delimited list of fnmatch patterns (applied AFTER pattern)
          *   --all              - all files, same as --pattern="*"
+         *   --last-only        - read ONLY last file version from "from-archive"
          *
          * Examples:
          *    

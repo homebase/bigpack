@@ -315,8 +315,8 @@ class Packer
         stream_set_write_buffer($this->fh_index, 1 << 16);
         stream_set_write_buffer($this->fh_data, 1 << 20);
         $this->stat['files'] = 0;
-        $this->stat['file-size'] = 0;
-        $this->stat['started'] = time();
+        $this->stat['files-size'] = 0;
+        // $this->stat['started'] = time();
     }
 
     /**
@@ -475,7 +475,8 @@ class Packer
         }
         $this->_packInit();
         $offset = filesize(Core::DATA);
-        $fromIndexReader = $from_archive->indexReader(Core::_patternFilter($this->opts));
+        $filter = Core::_patternFilter($this->opts);
+        $fromIndexReader = @$this->opts['last-only'] ? $from_archive->lastIndexReader($filter) : $from_archive->indexReader($filter);
         foreach ($fromIndexReader as $line) {
             [$file, $filename_hash, $data_hash, $mode, $file_mtime, $added_time, $file_offset] = $line;
             if (@$this->KNOWN_FILE[$filename_hash]) {
@@ -884,7 +885,7 @@ class Extractor
      * check validity of Index and Data files
      * make sure that last file(s) added to Index is last file in Data File
      * option: --buffer=8192
-     * HINT: use 'bigpack extract --all --check' to check all files in archive for corruption
+     * use 'bigpack extract --all --check' to check all files in archive for corruption\n";
      */
     function checkArchive() {
         $buffer = $this->opts['buffer'] ?? 8192;
@@ -908,7 +909,7 @@ class Extractor
         $expectedSize = /* file-offset */  $d[6] + strlen($data) + Core::DATA_PREFIX;
         $actualSize = filesize(Core::DATA);
         if ($expectedSize === $actualSize) {
-            echo "Datafile Size Check - OK\n\n";
+            echo "Datafile Size Check - OK\n";
             echo "Congratulations - Index and Datafile files are in SYNC\n";
             return;
         }
@@ -1146,7 +1147,7 @@ class _BigPack
     }
 
     /**
-     * IndexFile Generator
+     * IndexFile Reader / Generator
      * @param $patterns : [] = no filters | list of fnmatch expressions
      * @return Lines of Index File [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
      */
@@ -1168,6 +1169,43 @@ class _BigPack
         }
         fclose($fh_index);
     }
+
+    /**
+     * Last-Version-Only IndexFile Reader / Generator
+     * 
+     * @param $patterns : [] = no filters | list of fnmatch expressions
+     * @return Lines of Index File [0 => "#FileName", 1 => "FilenameHash",  2 => "DataHash", 3 => "FilePerms", 4 => "FileMTime", 5 => "AddedTime", 6 => "DataOffset"]
+     */
+    function lastIndexReader(? \Closure $filter = null) : \Generator
+    {
+        if (!file_exists($this->dir . Core::INDEX))
+            Util::error("Bigpack index not found in $this->dir");
+        $fh_index = fopen($this->dir . Core::INDEX, "r");
+        $FH2LINE = []; // FileHash => (sting) index-line
+        // PASS ONE - filter out old file versions
+        while (($L = stream_get_line($fh_index, 1024 * 1024, "\n")) !== false) {   
+            if ($L{0} === '#')
+                continue;
+            $p1 = strpos($L, "\t")+1;
+            $p2 = strpos($L, "\t", $p1);
+            $fh_hex = substr($L, $p1, $p2-$p1);
+            // echo "$fh_hex $L\n";
+            $fh = hex2bin($fh_hex); // filehash
+            if ($filter && !$filter($d))
+                continue;
+            $FL2LINE[$fh] = $L;
+        }
+        fclose($fh_index);
+        // PASS TWO - generator
+        foreach ($FL2LINE as $fh => $L) {
+            $d = explode("\t", $L);
+            $d[1] = $fh;  // FileNameHash
+            $d[2] = hex2bin($d[2]);  // DataHash
+            $d[3] = (int)base_convert($d[3], 8, 10); // File Permissions
+            yield $d;
+        }
+    }
+    
 
     /**
      * Read data from Data file at specified offset

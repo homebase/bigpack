@@ -235,7 +235,7 @@ class Util
      */
     static function fileLastLines(string $filename, int $buffer = 8192) : array
     { 
-        $fh = fopen($filename, 'r');
+        $fh = fopen($filename, 'r') or Util::error("can't open: $php_errormsg");
         fseek($fh, -$buffer , SEEK_END);
         $lines = explode("\n", fread($fh, $buffer));
         array_pop($lines); // last line is always empty
