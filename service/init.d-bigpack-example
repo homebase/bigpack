@@ -1,0 +1,45 @@
+#!/bin/bash
+#
+# bigpack for OMT Tiles - ports 8080, 8081
+#
+# chkconfig: 2345 12 88
+# description: web server for Open Street Map Tiles
+
+# Source function library.
+. /etc/init.d/functions
+
+dir=/d/0107/bigpack.db4/2019-01-11
+
+start() {
+        echo -n $"Starting up Bigpack: "
+        cd $dir
+        sudo -u parf php -S 172.16.3.56:8080 /usr/local/src/bigpack/php/bigpack-server --dir=$dir &
+        sudo -u parf php -S 172.16.3.56:8081 /usr/local/src/bigpack/php/bigpack-server --dir=$dir &
+        sleep 1
+        pids=$(pgrep "php" -u parf -d " ")
+        echo "Started pids: $pids"
+        return 0
+}
+stop() {
+   pids=$(pgrep "php" -u parf -d " ")
+   echo -n "Stopping Bigpack pids: $pids "
+   kill $pids
+}
+restart() {
+        stop
+        start
+}
+
+case "$1" in
+  start)
+        start
+        ;;
+  stop)
+        stop
+        ;;
+  restart)
+        restart
+        ;;
+esac
+
+exit $?
