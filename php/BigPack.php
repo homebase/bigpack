@@ -483,7 +483,7 @@ class Packer
                 @$this->stat['known-files']++;
                 continue;
             }
-            [$data, $archive_data_hash, $flags] = $from_archive->_ReadOffset($file_offset);
+            [$data, $archive_data_hash, $flags] = $from_archive->_readOffset($file_offset);
             if ($archive_data_hash != $data_hash) {
                 $this->_packFinish();
                 Util::error("archive filename: $file data_hash mismatch");
@@ -606,7 +606,7 @@ class Packer
         static $data_buffer = [];
         static $count = 0;
         static $size = 0;
-
+        
         if ($file)
             $files[] = $file;
         if ($index)
@@ -1216,6 +1216,7 @@ class _BigPack
             if (!file_exists($this->dir . Core::DATA))
                 Util::error("Bigpack DATA not found in $this->dir");
             $this->fh_data = Util::openLock($this->dir . Core::DATA);
+            stream_set_read_buffer($this->fh_data, 655360);
         }
         return static::__readOffset($this->fh_data, $offset);
     }
