@@ -421,6 +421,13 @@ namespace hb\bigpack {
          *   port=port                     << DEFAULT 8080
          *   mime-types=/etc/mime.types    << DEFAULT (use same format)
          *   expires-minutes=50            << DEFAULT 0  - Expires tag
+         *   debug=BitMask
+         *                                 BitMask & 1 : show filename in 404 message
+         *                                 BitMask & 2 : show 404, 410 (file not found, file gone)
+         *                                 BitMask & 4 : show 200 (HTTP_OK)
+         *                                 BitMask & 8 : show 304 (not modified)
+         *                                 Example: 3 - show missing/gone files on console
+         *                                 Example: 15 - show ALL on console
          *
          */
         static function server(array $opts)
@@ -432,8 +439,9 @@ namespace hb\bigpack {
             $port = $opts['port'] ?? 8080;
             $host = $opts['host'] ?? "localhost";
             $server = __DIR__ . "/bigpack-server";
-            echo "Starting bigpack php-web server. http://$host:$port\n";
-            shell_exec("php -S $host:$port $server");
+            $cwd = getcwd();
+            echo "Starting bigpack php-web server. http://$host:$port $cwd\n";
+            shell_exec("php -S $host:$port $server --dir=".escapeshellarg($cwd)); // see dir in "ps axf"
         }
 
         /**

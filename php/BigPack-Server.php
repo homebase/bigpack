@@ -127,6 +127,13 @@ class ExtractorWeb extends ExtractorMap2 {
         return $this->mime_types[$ext] ?? "application/octet-stream";
     }
 
+    /**
+     * Config Option "debug"
+     *   debug & 1 : show filename in 404 message
+     *   debug & 2 : show 404, 410 (file not found, file gone)
+     *   debug & 4 : show 200 (HTTP_OK)
+     *   debug & 8 : show 304 (not modified)
+     */
     function serve(string $uri) {
         // @$this->stats['requests']++;
         // fwrite(STDERR, json_encode([$this->stats, $this->opts])."\n");
@@ -137,11 +144,16 @@ class ExtractorWeb extends ExtractorMap2 {
         $offset = $this->_offset($fh);
         if ($offset === 0) {
             header("HTTP/1.0 404 Not Found");
-            echo "<h1>Error 404 - File <u>$file</u> Not Found</h1>";
+            if (@$this->opts['debug'])
+                echo "<h1>Error 404 - File <u>$file</u> Not Found</h1>";
+            else
+                echo "<h1>File Not Found</h1>";
+            $this->log(2, "404\t$file");
             return;
         }
         if ($offset === 1) {
             header("HTTP/1.0 500 Not Found");
+            fwrite(STDERR, "source file out of sync. serving\t$file\n");
             echo "<h1>Error 500 - Source files out of sync</h1>";
             return;
         }
@@ -149,6 +161,7 @@ class ExtractorWeb extends ExtractorMap2 {
         $etag = bin2hex($dh);
         if ($query_etag = @$_SERVER['HTTP_IF_NONE_MATCH']) {
             if ($query_etag === $etag) {
+                $this->log(8, "304\t$file");
                 header("HTTP/1.1 304 Not Modified");
                 return;
             }
@@ -156,6 +169,7 @@ class ExtractorWeb extends ExtractorMap2 {
         if ($gzip)
             header("Content-Encoding: deflate"); // serve compressed data
         if (! $data && ! $dh) {
+            $this->log(2, "410\t$file");
             header("HTTP/1.1 410 Gone");
             return;
         }
@@ -163,8 +177,16 @@ class ExtractorWeb extends ExtractorMap2 {
         header("Etag: $etag");
         if ($this->expires_min)
             header('Expires: '.gmdate('D, d M Y H:i:s \G\M\T', time() + ($this->expires_min * 60)));
+        $this->log(4, "200\t$file");
         echo $data;
     }
 
+    /**
+     * show debug message to STDERR (console)
+     * format: date time\tmessage\t$IP
+     */
+    function log($debugBitMask, $message) {
+        ($this->opts['debug'] ?? 0) & $debugBitMask && fwrite(STDERR, date("y-m-d H:i:s")."\t".$message."\t".$_SERVER["REMOTE_ADDR"]."\n");
+    }
 
 }
