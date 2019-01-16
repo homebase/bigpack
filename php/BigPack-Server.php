@@ -34,7 +34,7 @@ use hb\util\Util;
  */
 class Server {
 
-    const VERSION = "1.0.2";
+    const VERSION = "1.0.3";
 
     // shared memory key
     // SHM Data shared only between php-fpm / parent-php-process-children
@@ -71,11 +71,12 @@ class ExtractorWeb extends ExtractorMap2 {
         } else {
             fwrite(STDERR, "No options file found\n");
         }
+        $opts['debug'] = (int) ($opts['debug'] ?? "0");
         $this->init();
     }
 
     function init() {
-        fprintf(STDERR, "%s", "INIT. Bigpack-Web-Server Version: ".Server::VERSION."\n");
+        fprintf(STDERR, "%s", "INIT. Bigpack-Web-Server Version: ".Server::VERSION." path=".getcwd()."\n");
         parent::init();
         $this->mimeTypeMapInit();
         $this->expires_min = @$this->opts['expires-minutes'] ?? 0;
@@ -186,7 +187,9 @@ class ExtractorWeb extends ExtractorMap2 {
      * format: date time\tmessage\t$IP
      */
     function log($debugBitMask, $message) {
-        ($this->opts['debug'] ?? 0) & $debugBitMask && fwrite(STDERR, date("y-m-d H:i:s")."\t".$message."\t".$_SERVER["REMOTE_ADDR"]."\n");
+        //($this->opts['debug'] ?? 0) & $debugBitMask && fwrite(STDERR, date("y-m-d H:i:s")."\t".$message."\t".$_SERVER["REMOTE_ADDR"]."\n");
+        // ip is useless - it is always IP of proxy
+        $this->opts['debug'] & $debugBitMask && fwrite(STDERR, date("y-m-d H:i:s")."\t".$message."\n");
     }
 
 }
