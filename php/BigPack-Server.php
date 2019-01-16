@@ -67,11 +67,9 @@ class ExtractorWeb extends ExtractorMap2 {
         $this->opts = $opts;
         if (file_exists(Core::OPTIONS)) {
             $this->opts += parse_ini_file(Core::OPTIONS);
-            fwrite(STDERR, "Options: ".json_encode($this->opts). "\n");
-        } else {
-            fwrite(STDERR, "No options file found\n");
         }
-        $opts['debug'] = (int) ($opts['debug'] ?? "0");
+        $this->opts['debug'] = (int) ($this->opts['debug'] ?? "0");
+        fwrite(STDERR, "Options: ".json_encode($this->opts). "\n");
         $this->init();
     }
 
