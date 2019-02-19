@@ -14,9 +14,18 @@
  *   [+] HTTP 410 GONE for deleted files
  *   [+] MAP2/MAP out of sync (new MAP file upload)
  *       re-read MAP2 file, try again, if still out-of-sync - return 500
+ *   [+] WEB-API [+] delete method
+ *
+ *
+ * BigPack WebApi:
+ * * located at http://$BIGPACK_WEB_SERVER/bigpack-api/$method?...&pass=$passkey
+ * * specify $passkey in BigPack.options "web-api-password" field
+ *
+ * BigPack WebApi Methods:
+ * * delete :  wrapper around "bigpack deleteContent" (add "&undelete=1" to undelete file)
+ *             make sure process have write permission
  *
  * TODO:
- *   Keep Data File Opened
  *   Avoid whole-file reads when ETAG matches
  *
  */
@@ -101,7 +110,7 @@ class ExtractorWeb extends ExtractorMap2 {
         }
         # echo "<pre>".json_encode($this->mime_types, JSON_PRETTY_PRINT)."</pre>";
     }
-    
+
     /**
      * find out mime for an file
      */
@@ -136,6 +145,13 @@ class ExtractorWeb extends ExtractorMap2 {
     function serve(string $uri) {
         // @$this->stats['requests']++;
         // fwrite(STDERR, json_encode([$this->stats, $this->opts])."\n");
+        if (! strncmp($uri, "/bigpack-api/", 13)) {  // BigPack API
+            // /bigpack-api/delete?file=sds&pass=parf123456789   << password in "pass" parateter
+            preg_match("!^([a-z]+)\?!", substr($uri, 13), $m);
+            $method = $m[1] ?? "";
+            (new WebAPI($this->opts['web-api-password'] ?? ""))->_exec($method);
+            return;
+        }
         $file = substr($uri, 1) ?: "index.html";
         if ($file{-1} === '/')
             $file .= "index.html";
@@ -151,12 +167,17 @@ class ExtractorWeb extends ExtractorMap2 {
             return;
         }
         if ($offset === 1) {
-            header("HTTP/1.0 500 Not Found");
+            header("HTTP/1.0 500 Not Found - file out of sync");
             fwrite(STDERR, "source file out of sync. serving\t$file\n");
             echo "<h1>Error 500 - Source files out of sync</h1>";
             return;
         }
         [$data, $dh, $gzip] = Core::_readOffset((int) $offset, 1);
+        if (! $data && ! $dh) {
+            $this->log(2, "410\t$file");
+            header("HTTP/1.1 410 Gone");
+            return;
+        }
         $etag = bin2hex($dh);
         if ($query_etag = @$_SERVER['HTTP_IF_NONE_MATCH']) {
             if ($query_etag === $etag) {
@@ -167,11 +188,6 @@ class ExtractorWeb extends ExtractorMap2 {
         }
         if ($gzip)
             header("Content-Encoding: deflate"); // serve compressed data
-        if (! $data && ! $dh) {
-            $this->log(2, "410\t$file");
-            header("HTTP/1.1 410 Gone");
-            return;
-        }
         header("Content-Type: ".$this->mimeType($file, $data, $gzip));
         header("Etag: $etag");
         if ($this->expires_min)
@@ -188,6 +204,69 @@ class ExtractorWeb extends ExtractorMap2 {
         //($this->opts['debug'] ?? 0) & $debugBitMask && fwrite(STDERR, date("y-m-d H:i:s")."\t".$message."\t".$_SERVER["REMOTE_ADDR"]."\n");
         // ip is useless - it is always IP of proxy
         $this->opts['debug'] & $debugBitMask && fwrite(STDERR, date("y-m-d H:i:s")."\t".$message."\n");
+    }
+
+}
+
+/**
+  * Bigpack Web API
+  */
+class WebAPI {
+
+    private /* string */ $pass;
+
+    function __construct(string $pass) {
+        $this->pass = $pass;
+    }
+
+    function _exec($method) {
+        // security
+        if (strlen($this->pass) < 10) {
+            fwrite(STDERR, "web-api-password - misconfiguration - no password or password is too short\n");
+            header("HTTP/1.0 500 web-api misconfiguration");
+            return;
+        }
+        // ACCESS
+        if ($this->pass !== $_GET['pass']) {
+            header("HTTP/1.0 403 access denied");
+            fwrite(STDERR, "web-api password incorrect\n");
+            return;
+        }
+        if ($method{0} === '_') {
+            header("HTTP/1.0 400 GTFO");
+            fwrite(STDERR, "web-api internal method call: '$method'\n");
+            return;
+        }
+        if (! method_exists($this, $method)) {
+            header("HTTP/1.0 501 Not implemented");
+            fwrite(STDERR, "method $method not implemented\n");
+            return;
+        }
+        // api method should return (string)"OK" or (array) or (srting) $error
+        $r = $this->$method($_GET);
+        if (! is_array($r) && $r !== "OK") {
+            header("HTTP/1.0 500 method $method error");
+            echo $r;
+            fwrite(STDERR, "web-api error: $method call\n");
+            return;
+        }
+        header("Content-Type: application/json");
+        echo json_encode($r);
+    }
+
+    /**
+     * mark file as deleted (or undelete it)
+     */
+    function delete(array $opts) {
+        $file = $opts['file'] ?? 0;
+        if (! $file)
+            return "'file' parameter expected";
+        $_opts = [];
+        if (@$opts['undelete'])
+            $_opts['undelete'] = 1;
+        (new Packer($_opts))->_deleteContent($file);
+        // echo "File : $file";
+        return "OK";
     }
 
 }

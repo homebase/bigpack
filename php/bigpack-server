@@ -1,6 +1,7 @@
 <?php
 // RUN AS: php -S localhost:8080 ./bigpack-server
 include __DIR__."/BigPack.php";
+include __DIR__."/Util.php";
 include __DIR__."/BigPack-Server.php";
 
 \hb\bigpack\Server::serve($_SERVER['REQUEST_URI']);
