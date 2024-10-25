@@ -424,7 +424,7 @@ class Packer
             $l = @explode("\t", $line);
             [$file, $mode, $file_mtime] = $l;
             $dataSourceFile = $l[3] ?? $file;
-            if ($file{0} . @$file{1} === './') // cut useless "./" prefix
+            if ($file[0] . @$file[1] === './') // cut useless "./" prefix
                 $file = substr($file, 2);
             $filename_hash = Core::hash($file);
             if (@$this->KNOWN_FILE[$filename_hash]) {
@@ -1157,7 +1157,7 @@ class _BigPack
             Util::error("Bigpack index not found in $this->dir");
         $fh_index = fopen($this->dir . Core::INDEX, "r");
         while (($L = stream_get_line($fh_index, 1024 * 1024, "\n")) !== false) {
-            if ($L{0} === '#')
+            if ($L[0] === '#')
                 continue;
             $d = explode("\t", $L);
             if ($filter && !$filter($d))
@@ -1184,7 +1184,7 @@ class _BigPack
         $FH2LINE = []; // FileHash => (sting) index-line
         // PASS ONE - filter out old file versions
         while (($L = stream_get_line($fh_index, 1024 * 1024, "\n")) !== false) {   
-            if ($L{0} === '#')
+            if ($L[0] === '#')
                 continue;
             $p1 = strpos($L, "\t")+1;
             $p2 = strpos($L, "\t", $p1);

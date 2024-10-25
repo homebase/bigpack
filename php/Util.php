@@ -112,15 +112,13 @@ class Util
         $args = [0 => $argv[0]];
         array_shift($argv);
         foreach ($argv as $a) {
-            if ($a {
-                0} !== '-') {
+            if ($a[0] !== '-') {
                 $args[] = $a;
                 continue;
             }
             error_if(strlen($a) < 2, "incorrect arg: $a");
             // -abc
-            if ($a {
-                1} !== '-') { // -ab == ['a' => true, 'b' -> true]
+            if ($a[1] !== '-') { // -ab == ['a' => true, 'b' -> true]
                 error_if(strpos($a, "="), "incorrect argument: $a\nuse --name=value instead");
                 foreach (range(1, strlen($a) - 1) as $p)
                     $options[$a[$p]] = true;
@@ -202,7 +200,7 @@ class Util
     { # Generator >> Path/File
         $dir = $base_dir . ($rdir ? "/$rdir" : "");
         foreach (scandir($dir) as $file) {
-            if ($file {0} === ".") // no cur-dir / hidden files / hidden directories
+            if ($file[0] === ".") // no cur-dir / hidden files / hidden directories
                 continue;
             if ($fileCallback && $fileCallback($dir, $file))
                 continue;
